@@ -1,8 +1,8 @@
 services:
   bundestag-mcp:
     build: .
-    ports:
-      - "${HOST_PORT:-3000}:3000"
+    expose:
+      - "3000"
     environment:
       - DIP_API_KEY=${DIP_API_KEY:-OSOegLs.PR2lwJ1dwCeje9vTj7FPOt3hvpYKtwKkhw}
       - PORT=3000
