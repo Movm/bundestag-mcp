@@ -29,6 +29,7 @@ You can use this directly in your MCP client configuration without running your 
 - [Docker](#docker)
 - [Development](#development)
 - [Architecture](#architecture)
+- [Semantic Search](#semantic-search)
 - [License](#license)
 
 ## Features
@@ -40,6 +41,7 @@ You can use this directly in your MCP client configuration without running your 
 - **Search Personen** - Find MPs and their information
 - **Search Aktivitäten** - Find parliamentary activities (speeches, questions)
 - **Full Text Retrieval** - Get complete document texts
+- **Semantic Search** - AI-powered search using Qdrant + Mistral embeddings
 
 ### Production-Ready
 - **Graceful Shutdown** - Clean session termination on SIGTERM/SIGINT
@@ -54,7 +56,7 @@ You can use this directly in your MCP client configuration without running your 
 - **Structured Logging** - JSON logs with categories and levels
 
 ### MCP Protocol
-- **14 Tools** - Comprehensive search and retrieval operations
+- **17 Tools** - Comprehensive search and retrieval operations
 - **3 Prompts** - Guided workflows for common tasks
 - **11 Resources** - Static and dynamic resource templates
 - **Dual Mode** - Supports stateful (Claude, Cursor) and stateless (ChatGPT) clients
@@ -136,6 +138,14 @@ The server will start at `http://localhost:3000`.
 | `bundestag_get_person` | Get person details by ID |
 | `bundestag_search_aktivitaeten` | Search parliamentary activities |
 | `bundestag_get_aktivitaet` | Get specific activity by ID |
+
+### Semantic Search Tools
+
+| Tool | Description |
+|------|-------------|
+| `bundestag_semantic_search` | AI-powered semantic search across all documents |
+| `bundestag_semantic_search_status` | Show semantic search system status |
+| `bundestag_trigger_indexing` | Manually trigger document indexing |
 
 ### Utility Tools
 
@@ -362,6 +372,76 @@ Request → Rate Limiter → Circuit Breaker → Retry Logic → DIP API
 | API Response | 5 min | 500 | Search results |
 | Entity | 15 min | 200 | Individual documents |
 | Metadata | 24 hr | 50 | Wahlperioden, document types |
+
+## Semantic Search
+
+The server supports AI-powered semantic search using Qdrant vector database and Mistral embeddings. This enables finding conceptually related documents even when exact keywords don't match.
+
+### How It Works
+
+1. **Document Indexing**: Background indexer fetches documents from DIP API and generates embeddings using Mistral AI
+2. **Vector Storage**: Embeddings are stored in Qdrant with rich metadata for filtering
+3. **Semantic Query**: User queries are embedded and matched against document vectors using cosine similarity
+
+### Features
+
+- **Multilingual**: Search in English, finds German documents (e.g., "renewable energy" → "Erneuerbare Energien")
+- **Rich Filtering**: Filter by document type, entity type, Wahlperiode, Sachgebiet, initiative, faction, date range
+- **56,000+ Documents**: Covers Wahlperioden 19 and 20 (2017-present)
+
+### Configuration
+
+Add to your `.env` file:
+
+```bash
+# Semantic Search (Qdrant + Mistral)
+QDRANT_ENABLED=true
+QDRANT_URL=http://qdrant:6333
+MISTRAL_API_KEY=your-mistral-api-key
+
+# Background Indexer
+INDEXER_ENABLED=true
+INDEXER_INTERVAL_MINUTES=15
+INDEXER_WAHLPERIODEN=19,20
+```
+
+### Docker Compose with Qdrant
+
+```yaml
+services:
+  bundestag-mcp:
+    build: .
+    environment:
+      - QDRANT_ENABLED=true
+      - QDRANT_URL=http://qdrant:6333
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - INDEXER_ENABLED=true
+    depends_on:
+      - qdrant
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+volumes:
+  qdrant_data:
+```
+
+### Semantic Search Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `query` | Natural language search query |
+| `limit` | Max results (1-50) |
+| `docTypes` | Filter: `drucksache`, `vorgang`, `aktivitaet` |
+| `entityTypes` | Filter: `Gesetzentwurf`, `Kleine Anfrage`, `Rede`, etc. |
+| `wahlperiode` | Electoral period (19, 20) |
+| `sachgebiet` | Subject area |
+| `initiative` | Initiating faction (CDU/CSU, SPD, etc.) |
+| `fraktion` | Parliamentary group |
+| `dateFrom` / `dateTo` | Date range (YYYY-MM-DD) |
+| `scoreThreshold` | Minimum similarity (0-1, default 0.3) |
 
 ## DIP API
 
