@@ -51,11 +51,17 @@ Common Drucksache types:
 - \`Große Anfrage\`: Major interpellation
 - \`Beschlussempfehlung und Bericht\`: Committee recommendation
 
-### 5. Full Text
-For Drucksachen and Plenarprotokolle, use \`includeFullText: true\` to get the complete document text.
-Note: Full text fetching takes longer.
+### 5. Full Text Search
+Two approaches for full-text:
+- Use \`includeFullText: true\` on get_drucksache/get_plenarprotokoll for single documents
+- Use \`bundestag_search_drucksachen_text\` or \`bundestag_search_plenarprotokolle_text\` to search within content
 
-### 6. Linking Documents
+### 6. Vorgangspositionen
+Track detailed bill progress with \`bundestag_search_vorgangspositionen\`:
+- Filter by \`vorgang_id\` to see all steps of a specific bill
+- Shows committee referrals, votes, decisions, and other milestones
+
+### 7. Linking Documents
 Use Vorgänge to understand how documents relate:
 1. Search for a Vorgang by topic
 2. Get the Vorgang by ID - it lists all related Drucksachen
@@ -114,30 +120,39 @@ export const infoResource = {
       capabilities: {
         entities: [
           'drucksache',
+          'drucksache-text',
           'plenarprotokoll',
+          'plenarprotokoll-text',
           'vorgang',
+          'vorgangsposition',
           'person',
           'aktivitaet'
         ],
         features: [
           'Full-text search',
+          'Metadata search',
           'Date range filtering',
           'Wahlperiode filtering',
           'Pagination with cursors',
           'Full document text retrieval',
+          'Proceeding position tracking',
           'Response caching'
         ]
       },
       tools: [
         'bundestag_search_drucksachen',
         'bundestag_get_drucksache',
+        'bundestag_search_drucksachen_text',
         'bundestag_search_plenarprotokolle',
         'bundestag_get_plenarprotokoll',
+        'bundestag_search_plenarprotokolle_text',
         'bundestag_search_vorgaenge',
         'bundestag_get_vorgang',
+        'bundestag_search_vorgangspositionen',
         'bundestag_search_personen',
         'bundestag_get_person',
         'bundestag_search_aktivitaeten',
+        'bundestag_get_aktivitaet',
         'bundestag_cache_stats',
         'get_client_config'
       ]

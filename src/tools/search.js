@@ -468,6 +468,185 @@ Use this to find specific contributions by MPs in parliament.`,
   }
 };
 
+export const getAktivitaetTool = {
+  name: 'bundestag_get_aktivitaet',
+  description: 'Get a specific parliamentary activity by its ID.',
+
+  inputSchema: {
+    id: z.number().int().positive()
+      .describe('Aktivitaet ID'),
+    useCache: useCacheSchema
+  },
+
+  async handler(params) {
+    try {
+      const result = await api.getAktivitaet(params.id, { useCache: params.useCache });
+
+      if (!result) {
+        return {
+          error: true,
+          message: `Aktivitaet with ID ${params.id} not found`,
+          endpoint: 'aktivitaet'
+        };
+      }
+
+      return {
+        success: true,
+        endpoint: 'aktivitaet',
+        id: params.id,
+        cached: result.cached,
+        data: result
+      };
+    } catch (err) {
+      return {
+        error: true,
+        message: err.message,
+        endpoint: 'aktivitaet',
+        id: params.id
+      };
+    }
+  }
+};
+
+// ============================================================================
+// Vorgangspositionen Tools
+// ============================================================================
+
+export const searchVorgangspositionenTool = {
+  name: 'bundestag_search_vorgangspositionen',
+  description: `Search Vorgangspositionen (proceeding positions/steps).
+A Vorgangsposition represents a single step in a legislative proceeding (Vorgang),
+such as a committee referral, vote, or decision. Use this to track detailed
+progress of bills through parliament.`,
+
+  inputSchema: {
+    vorgang_id: z.number().int().positive().optional()
+      .describe('Filter by Vorgang ID to get all positions of a specific proceeding'),
+    wahlperiode: wahlperiodeSchema,
+    datum_start: datumStartSchema,
+    datum_end: datumEndSchema,
+    limit: limitSchema,
+    cursor: cursorSchema,
+    useCache: useCacheSchema
+  },
+
+  async handler(params) {
+    try {
+      const result = await api.searchVorgangspositionen(params, { useCache: params.useCache });
+
+      return {
+        success: true,
+        endpoint: 'vorgangsposition',
+        query: params,
+        totalResults: result.numFound || 0,
+        returnedResults: result.documents?.length || 0,
+        cursor: result.cursor || null,
+        hasMore: !!(result.cursor),
+        cached: result.cached,
+        results: result.documents || []
+      };
+    } catch (err) {
+      return {
+        error: true,
+        message: err.message,
+        endpoint: 'vorgangsposition'
+      };
+    }
+  }
+};
+
+// ============================================================================
+// Full-Text Search Tools
+// ============================================================================
+
+export const searchDrucksachenTextTool = {
+  name: 'bundestag_search_drucksachen_text',
+  description: `Full-text search within Drucksachen content.
+Unlike bundestag_search_drucksachen which searches metadata/titles,
+this searches the actual document text. Use this to find specific
+phrases, legal references, or content within parliamentary documents.`,
+
+  inputSchema: {
+    query: z.string()
+      .describe('Full-text search query within document content'),
+    wahlperiode: wahlperiodeSchema,
+    drucksache_id: z.number().int().positive().optional()
+      .describe('Filter to a specific Drucksache ID'),
+    limit: z.number().int().min(1).max(50).default(10)
+      .describe('Maximum results (1-50, lower limit than metadata search)'),
+    cursor: cursorSchema,
+    useCache: useCacheSchema
+  },
+
+  async handler(params) {
+    try {
+      const result = await api.searchDrucksachenText(params, { useCache: params.useCache });
+
+      return {
+        success: true,
+        endpoint: 'drucksache-text',
+        query: params,
+        totalResults: result.numFound || 0,
+        returnedResults: result.documents?.length || 0,
+        cursor: result.cursor || null,
+        hasMore: !!(result.cursor),
+        cached: result.cached,
+        results: result.documents || []
+      };
+    } catch (err) {
+      return {
+        error: true,
+        message: err.message,
+        endpoint: 'drucksache-text'
+      };
+    }
+  }
+};
+
+export const searchPlenarprotokolleTextTool = {
+  name: 'bundestag_search_plenarprotokolle_text',
+  description: `Full-text search within Plenarprotokoll transcripts.
+Unlike bundestag_search_plenarprotokolle which searches metadata,
+this searches actual speech transcripts. Use this to find specific
+quotes, debates on topics, or MP statements in plenary sessions.`,
+
+  inputSchema: {
+    query: z.string()
+      .describe('Full-text search query within transcript content'),
+    wahlperiode: wahlperiodeSchema,
+    plenarprotokoll_id: z.number().int().positive().optional()
+      .describe('Filter to a specific Plenarprotokoll ID'),
+    limit: z.number().int().min(1).max(50).default(10)
+      .describe('Maximum results (1-50, lower limit than metadata search)'),
+    cursor: cursorSchema,
+    useCache: useCacheSchema
+  },
+
+  async handler(params) {
+    try {
+      const result = await api.searchPlenarprotokolleText(params, { useCache: params.useCache });
+
+      return {
+        success: true,
+        endpoint: 'plenarprotokoll-text',
+        query: params,
+        totalResults: result.numFound || 0,
+        returnedResults: result.documents?.length || 0,
+        cursor: result.cursor || null,
+        hasMore: !!(result.cursor),
+        cached: result.cached,
+        results: result.documents || []
+      };
+    } catch (err) {
+      return {
+        error: true,
+        message: err.message,
+        endpoint: 'plenarprotokoll-text'
+      };
+    }
+  }
+};
+
 // ============================================================================
 // Utility Tools
 // ============================================================================
@@ -488,14 +667,24 @@ export const cacheStatsTool = {
 
 // Export all tools as array for easy registration
 export const allTools = [
+  // Drucksachen (Documents)
   searchDrucksachenTool,
   getDrucksacheTool,
+  searchDrucksachenTextTool,
+  // Plenarprotokolle (Plenary Protocols)
   searchPlenarprotokolleTool,
   getPlenarprotokollTool,
+  searchPlenarprotokolleTextTool,
+  // Vorgaenge (Proceedings)
   searchVorgaengeTool,
   getVorgangTool,
+  searchVorgangspositionenTool,
+  // Personen (Persons)
   searchPersonenTool,
   getPersonTool,
+  // Aktivitaeten (Activities)
   searchAktivitaetenTool,
+  getAktivitaetTool,
+  // Utility
   cacheStatsTool
 ];

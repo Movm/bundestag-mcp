@@ -68,7 +68,13 @@ Three-layer cache in `src/utils/cache.js`:
 ### MCP Protocol
 
 The server exposes:
-- **Tools**: 10 search/entity tools + client config tool
+- **Tools**: 14 search/entity tools + client config tool
+  - Drucksachen: search, get, text search
+  - Plenarprotokolle: search, get, text search
+  - Vorgänge: search, get, positionen search
+  - Personen: search, get
+  - Aktivitäten: search, get
+  - Utility: cache_stats, get_client_config
 - **Resources**: system-prompt, info, wahlperioden, drucksachetypen
 
 All tools are read-only (annotated with `readOnlyHint: true`).
@@ -85,10 +91,13 @@ Optional:
 
 ## DIP API Entities
 
-Five main entity types:
+Eight entity types (all from official DIP API):
 - `drucksache` → Printed documents (bills, motions, inquiries)
+- `drucksache-text` → Full-text content of documents
 - `plenarprotokoll` → Plenary session transcripts
+- `plenarprotokoll-text` → Full-text content of transcripts
 - `vorgang` → Parliamentary proceedings (bill lifecycle)
+- `vorgangsposition` → Individual steps in a proceeding
 - `person` → MPs and other persons
 - `aktivitaet` → Parliamentary activities (speeches, questions)
 

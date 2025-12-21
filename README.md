@@ -63,6 +63,7 @@ The server will start at `http://localhost:3000`.
 |------|-------------|
 | `bundestag_search_drucksachen` | Search printed documents (Gesetzentwürfe, Anträge, Anfragen) |
 | `bundestag_get_drucksache` | Get specific document by ID (optionally with full text) |
+| `bundestag_search_drucksachen_text` | Full-text search within document content |
 
 ### Protocol Tools
 
@@ -70,6 +71,7 @@ The server will start at `http://localhost:3000`.
 |------|-------------|
 | `bundestag_search_plenarprotokolle` | Search plenary session transcripts |
 | `bundestag_get_plenarprotokoll` | Get specific protocol by ID (optionally with full text) |
+| `bundestag_search_plenarprotokolle_text` | Full-text search within transcript content |
 
 ### Proceeding Tools
 
@@ -77,6 +79,7 @@ The server will start at `http://localhost:3000`.
 |------|-------------|
 | `bundestag_search_vorgaenge` | Search parliamentary proceedings |
 | `bundestag_get_vorgang` | Get specific proceeding by ID |
+| `bundestag_search_vorgangspositionen` | Search proceeding positions/steps (track bill progress) |
 
 ### Person & Activity Tools
 
@@ -85,6 +88,7 @@ The server will start at `http://localhost:3000`.
 | `bundestag_search_personen` | Search MPs and other persons |
 | `bundestag_get_person` | Get person details by ID |
 | `bundestag_search_aktivitaeten` | Search parliamentary activities |
+| `bundestag_get_aktivitaet` | Get specific activity by ID |
 
 ### Utility Tools
 

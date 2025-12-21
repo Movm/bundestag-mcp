@@ -209,6 +209,11 @@ app.get('/.well-known/mcp.json', (req, res) => {
         annotations: { readOnlyHint: true, idempotentHint: true }
       },
       {
+        name: 'bundestag_search_drucksachen_text',
+        description: 'Full-text search within document content',
+        annotations: { readOnlyHint: true, idempotentHint: true }
+      },
+      {
         name: 'bundestag_search_plenarprotokolle',
         description: 'Search plenary session transcripts',
         annotations: { readOnlyHint: true, idempotentHint: true }
@@ -219,6 +224,11 @@ app.get('/.well-known/mcp.json', (req, res) => {
         annotations: { readOnlyHint: true, idempotentHint: true }
       },
       {
+        name: 'bundestag_search_plenarprotokolle_text',
+        description: 'Full-text search within plenary transcripts',
+        annotations: { readOnlyHint: true, idempotentHint: true }
+      },
+      {
         name: 'bundestag_search_vorgaenge',
         description: 'Search parliamentary proceedings',
         annotations: { readOnlyHint: true, idempotentHint: true }
@@ -226,6 +236,11 @@ app.get('/.well-known/mcp.json', (req, res) => {
       {
         name: 'bundestag_get_vorgang',
         description: 'Get a specific proceeding by ID',
+        annotations: { readOnlyHint: true, idempotentHint: true }
+      },
+      {
+        name: 'bundestag_search_vorgangspositionen',
+        description: 'Search proceeding positions/steps',
         annotations: { readOnlyHint: true, idempotentHint: true }
       },
       {
@@ -241,6 +256,11 @@ app.get('/.well-known/mcp.json', (req, res) => {
       {
         name: 'bundestag_search_aktivitaeten',
         description: 'Search parliamentary activities',
+        annotations: { readOnlyHint: true, idempotentHint: true }
+      },
+      {
+        name: 'bundestag_get_aktivitaet',
+        description: 'Get a specific activity by ID',
         annotations: { readOnlyHint: true, idempotentHint: true }
       },
       {
@@ -260,7 +280,7 @@ app.get('/.well-known/mcp.json', (req, res) => {
       { uri: 'bundestag://wahlperioden', name: 'Electoral Periods' },
       { uri: 'bundestag://drucksachetypen', name: 'Document Types' }
     ],
-    entities: ['drucksache', 'plenarprotokoll', 'vorgang', 'person', 'aktivitaet'],
+    entities: ['drucksache', 'drucksache-text', 'plenarprotokoll', 'plenarprotokoll-text', 'vorgang', 'vorgangsposition', 'person', 'aktivitaet'],
     supported_clients: ['claude', 'cursor', 'vscode', 'chatgpt']
   });
 });
