@@ -10,7 +10,8 @@ import {
   getCachedEntity,
   cacheEntity
 } from '../utils/cache.js';
-import { debug, error, logApiRequest } from '../utils/logger.js';
+import { debug, error, info, logApiRequest } from '../utils/logger.js';
+import { withRetry } from '../utils/retry.js';
 
 /**
  * Make an authenticated request to the DIP API
@@ -45,44 +46,59 @@ async function makeRequest(endpoint, params = {}, options = {}) {
 
   debug('API', `Requesting: ${endpoint}`, { params });
 
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), config.dipApi.timeout);
+  // Wrap fetch in retry logic for transient failures
+  const data = await withRetry(
+    async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), config.dipApi.timeout);
 
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json'
-      },
-      signal: controller.signal
-    });
+      try {
+        const response = await fetch(url.toString(), {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          },
+          signal: controller.signal
+        });
 
-    clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      error('API', `Request failed: ${response.status}`, { endpoint, error: errorText });
-      throw new Error(`DIP API error: ${response.status} - ${errorText}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          const err = new Error(`DIP API error: ${response.status} - ${errorText}`);
+          err.status = response.status;
+          throw err;
+        }
+
+        return response.json();
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          const timeoutErr = new Error(`DIP API timeout after ${config.dipApi.timeout}ms`);
+          timeoutErr.name = 'AbortError';
+          throw timeoutErr;
+        }
+        throw err;
+      }
+    },
+    {
+      maxRetries: 3,
+      baseDelay: 100,
+      onRetry: ({ attempt, delay, error: retryError }) => {
+        info('API', `Retry ${attempt}/3 for ${endpoint} after ${Math.round(delay)}ms: ${retryError.message}`);
+      }
     }
+  );
 
-    const data = await response.json();
-    const responseTime = Date.now() - startTime;
+  const responseTime = Date.now() - startTime;
 
-    // Cache the response
-    if (useCache) {
-      cacheApiResponse(endpoint, params, data);
-    }
-
-    logApiRequest(endpoint, entityType, data.numFound || 1, responseTime, false);
-    return { ...data, cached: false };
-
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      error('API', 'Request timeout', { endpoint });
-      throw new Error(`DIP API timeout after ${config.dipApi.timeout}ms`);
-    }
-    throw err;
+  // Cache the response
+  if (useCache) {
+    cacheApiResponse(endpoint, params, data);
   }
+
+  logApiRequest(endpoint, entityType, data.numFound || 1, responseTime, false);
+  return { ...data, cached: false };
 }
 
 /**
@@ -108,47 +124,67 @@ async function getById(endpoint, id, options = {}) {
 
   debug('API', `Fetching: ${endpoint}/${id}`);
 
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), config.dipApi.timeout);
+  // Wrap fetch in retry logic for transient failures
+  const data = await withRetry(
+    async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), config.dipApi.timeout);
 
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json'
-      },
-      signal: controller.signal
-    });
+      try {
+        const response = await fetch(url.toString(), {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          },
+          signal: controller.signal
+        });
 
-    clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null;
+        if (!response.ok) {
+          if (response.status === 404) {
+            return { __notFound: true };
+          }
+          const errorText = await response.text();
+          const err = new Error(`DIP API error: ${response.status} - ${errorText}`);
+          err.status = response.status;
+          throw err;
+        }
+
+        return response.json();
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          const timeoutErr = new Error(`DIP API timeout after ${config.dipApi.timeout}ms`);
+          timeoutErr.name = 'AbortError';
+          throw timeoutErr;
+        }
+        throw err;
       }
-      const errorText = await response.text();
-      error('API', `Request failed: ${response.status}`, { endpoint, id, error: errorText });
-      throw new Error(`DIP API error: ${response.status} - ${errorText}`);
+    },
+    {
+      maxRetries: 3,
+      baseDelay: 100,
+      onRetry: ({ attempt, delay, error: retryError }) => {
+        info('API', `Retry ${attempt}/3 for ${endpoint}/${id} after ${Math.round(delay)}ms: ${retryError.message}`);
+      }
     }
+  );
 
-    const data = await response.json();
-    const responseTime = Date.now() - startTime;
-
-    // Cache the entity
-    if (useCache) {
-      cacheEntity(endpoint, id, data);
-    }
-
-    logApiRequest(`${endpoint}/${id}`, entityType, 1, responseTime, false);
-    return { ...data, cached: false };
-
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      error('API', 'Request timeout', { endpoint, id });
-      throw new Error(`DIP API timeout after ${config.dipApi.timeout}ms`);
-    }
-    throw err;
+  // Handle 404 case
+  if (data && data.__notFound) {
+    return null;
   }
+
+  const responseTime = Date.now() - startTime;
+
+  // Cache the entity
+  if (useCache) {
+    cacheEntity(endpoint, id, data);
+  }
+
+  logApiRequest(`${endpoint}/${id}`, entityType, 1, responseTime, false);
+  return { ...data, cached: false };
 }
 
 // ============================================================================

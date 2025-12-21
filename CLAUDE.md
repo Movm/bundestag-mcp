@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -18,6 +18,9 @@ npm start
 # Run with auto-reload (development)
 npm run dev
 
+# Run tests
+npm test
+
 # Build Docker image
 docker build -t bundestag-mcp .
 
@@ -31,7 +34,9 @@ docker run -p 3000:3000 \
 
 ### Entry Point & Server
 
-`src/index.js` - Express server that implements MCP protocol via streamable HTTP transport. Creates MCP server instances per session with tools and resources.
+`src/index.js` - Express server that implements MCP protocol via StreamableHTTPServerTransport. Supports two modes:
+- **Stateful mode** (Claude, Cursor, VS Code): Session-based with persistent transport per `mcp-session-id` header
+- **Stateless mode** (ChatGPT): Fresh server/transport per request, no session tracking
 
 ### Core Components
 
@@ -40,7 +45,7 @@ src/
 ├── config.js              # Environment config and validation
 ├── api/bundestag.js       # DIP API client with all endpoint methods
 ├── tools/
-│   ├── search.js          # All search and entity retrieval tools
+│   ├── search.js          # 14 search/entity tools with Zod schemas
 │   └── clientConfig.js    # Client configuration generator tool
 ├── resources/info.js      # MCP resources (system-prompt, info, etc.)
 └── utils/

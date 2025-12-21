@@ -19,6 +19,15 @@ import { clientConfigTool } from './tools/clientConfig.js';
 import { getCacheStats } from './utils/cache.js';
 import { info, error, getStats } from './utils/logger.js';
 import { allResources } from './resources/info.js';
+import { allResourceTemplates, registerResourceTemplates } from './resources/templates.js';
+import { allPrompts, registerPrompts } from './prompts/index.js';
+import {
+  getMetrics,
+  getMetricsContentType,
+  isMetricsEnabled,
+  metricsMiddleware,
+  updateActiveSessions
+} from './utils/metrics.js';
 console.log('[Boot] Config loaded');
 
 // Validate configuration
@@ -46,6 +55,10 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Prometheus metrics middleware (records HTTP metrics)
+app.use(metricsMiddleware());
+
 console.log('[Boot] Express configured');
 
 // Helper: Get base URL
@@ -132,6 +145,12 @@ function createMcpServer(baseUrl) {
     }
   );
 
+  // === MCP PROMPTS ===
+  registerPrompts(server);
+
+  // === MCP RESOURCE TEMPLATES ===
+  registerResourceTemplates(server);
+
   return server;
 }
 
@@ -162,7 +181,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Metrics endpoint (detailed stats)
+// Metrics endpoint (detailed stats - JSON format)
 app.get('/metrics', (req, res) => {
   const cacheStats = getCacheStats();
   const serverStats = getStats();
@@ -184,6 +203,87 @@ app.get('/metrics', (req, res) => {
       heapTotalMB: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
       rssMB: Math.round(process.memoryUsage().rss / 1024 / 1024)
     }
+  });
+});
+
+// Prometheus metrics endpoint
+app.get('/metrics/prometheus', async (req, res) => {
+  try {
+    // Update session count before exporting
+    updateActiveSessions(Object.keys(transports).length);
+
+    const metrics = await getMetrics();
+    res.set('Content-Type', getMetricsContentType());
+    res.send(metrics);
+  } catch (err) {
+    error('Metrics', `Failed to get Prometheus metrics: ${err.message}`);
+    res.status(500).send('# Error generating metrics\n');
+  }
+});
+
+// Deep health check - verifies DIP API connectivity
+app.get('/health/deep', async (req, res) => {
+  const checks = {
+    server: 'healthy',
+    dipApi: 'unknown',
+    cache: 'healthy',
+    memory: 'healthy'
+  };
+
+  let overallHealthy = true;
+
+  // Check DIP API connectivity
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    const apiUrl = new URL(`${config.dipApi.baseUrl}/drucksache`);
+    apiUrl.searchParams.set('apikey', config.dipApi.apiKey);
+    apiUrl.searchParams.set('format', 'json');
+    apiUrl.searchParams.set('rows', '1');
+
+    const response = await fetch(apiUrl.toString(), {
+      method: 'GET',
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      checks.dipApi = 'healthy';
+    } else {
+      checks.dipApi = `unhealthy (HTTP ${response.status})`;
+      overallHealthy = false;
+    }
+  } catch (err) {
+    checks.dipApi = `unhealthy (${err.message})`;
+    overallHealthy = false;
+  }
+
+  // Check memory usage
+  const memUsage = process.memoryUsage();
+  const heapUsedMB = memUsage.heapUsed / 1024 / 1024;
+  const heapTotalMB = memUsage.heapTotal / 1024 / 1024;
+  const heapUsedPercent = (heapUsedMB / heapTotalMB) * 100;
+
+  if (heapUsedPercent > 90) {
+    checks.memory = `warning (${Math.round(heapUsedPercent)}% heap used)`;
+  }
+
+  // Check cache health
+  const cacheStats = getCacheStats();
+  checks.cacheStats = {
+    apiEntries: cacheStats.apiResponses.entries,
+    entityEntries: cacheStats.entities.entries,
+    apiHitRate: cacheStats.apiResponses.hitRate
+  };
+
+  res.status(overallHealthy ? 200 : 503).json({
+    status: overallHealthy ? 'healthy' : 'degraded',
+    timestamp: new Date().toISOString(),
+    checks,
+    activeSessions: Object.keys(transports).length,
+    metricsEnabled: isMetricsEnabled()
   });
 });
 
@@ -280,6 +380,16 @@ app.get('/.well-known/mcp.json', (req, res) => {
       { uri: 'bundestag://wahlperioden', name: 'Electoral Periods' },
       { uri: 'bundestag://drucksachetypen', name: 'Document Types' }
     ],
+    prompts: allPrompts.map(p => ({
+      name: p.name,
+      description: p.description,
+      arguments: p.arguments
+    })),
+    resourceTemplates: allResourceTemplates.map(t => ({
+      uriTemplate: t.uriTemplate,
+      name: t.name,
+      description: t.description
+    })),
     entities: ['drucksache', 'drucksache-text', 'plenarprotokoll', 'plenarprotokoll-text', 'vorgang', 'vorgangsposition', 'person', 'aktivitaet'],
     supported_clients: ['claude', 'cursor', 'vscode', 'chatgpt']
   });
@@ -454,11 +564,63 @@ app.delete('/mcp', async (req, res) => {
   }
 });
 
+// Graceful Shutdown Handler
+let httpServer;
+let isShuttingDown = false;
+
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  info('Shutdown', `Received ${signal}, starting graceful shutdown...`);
+
+  // Stop accepting new connections
+  if (httpServer) {
+    httpServer.close(() => {
+      info('Shutdown', 'HTTP server closed');
+    });
+  }
+
+  // Close all active sessions
+  const sessionCount = Object.keys(transports).length;
+  if (sessionCount > 0) {
+    info('Shutdown', `Closing ${sessionCount} active session(s)...`);
+    for (const [sessionId, transport] of Object.entries(transports)) {
+      try {
+        transport.close();
+        delete transports[sessionId];
+      } catch (err) {
+        error('Shutdown', `Failed to close session ${sessionId}: ${err.message}`);
+      }
+    }
+  }
+
+  // Give in-flight requests time to complete (max 10 seconds)
+  const shutdownTimeout = 10000;
+  const shutdownStart = Date.now();
+
+  await new Promise((resolve) => {
+    const checkComplete = setInterval(() => {
+      const elapsed = Date.now() - shutdownStart;
+      if (Object.keys(transports).length === 0 || elapsed >= shutdownTimeout) {
+        clearInterval(checkComplete);
+        resolve();
+      }
+    }, 100);
+  });
+
+  info('Shutdown', 'Cleanup complete, exiting');
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 // Start server
 const PORT = config.server.port;
 console.log(`[Boot] Starting server on port ${PORT}...`);
 
-app.listen(PORT, () => {
+httpServer = app.listen(PORT, () => {
   const localUrl = `http://localhost:${PORT}`;
   const publicUrl = config.server.publicUrl;
 
@@ -472,16 +634,22 @@ app.listen(PORT, () => {
   }
   console.log('='.repeat(50));
   console.log('Endpoints:');
-  console.log(`  MCP:        ${localUrl}/mcp`);
-  console.log(`  Health:     ${localUrl}/health`);
-  console.log(`  Metrics:    ${localUrl}/metrics`);
-  console.log(`  Discovery:  ${localUrl}/.well-known/mcp.json`);
-  console.log(`  Info:       ${localUrl}/info`);
-  console.log(`  Config:     ${localUrl}/config/:client`);
+  console.log(`  MCP:           ${localUrl}/mcp`);
+  console.log(`  Health:        ${localUrl}/health`);
+  console.log(`  Health (deep): ${localUrl}/health/deep`);
+  console.log(`  Metrics:       ${localUrl}/metrics`);
+  console.log(`  Prometheus:    ${localUrl}/metrics/prometheus`);
+  console.log(`  Discovery:     ${localUrl}/.well-known/mcp.json`);
+  console.log(`  Info:          ${localUrl}/info`);
+  console.log(`  Config:        ${localUrl}/config/:client`);
   console.log('='.repeat(50));
   console.log('Resources:');
   allResources.forEach(r => {
     console.log(`  ${r.uri}`);
+  });
+  console.log('Resource Templates:');
+  allResourceTemplates.forEach(t => {
+    console.log(`  ${t.uriTemplate}`);
   });
   console.log('='.repeat(50));
   console.log('Tools:');
@@ -489,6 +657,11 @@ app.listen(PORT, () => {
     console.log(`  ${t.name}`);
   });
   console.log('  get_client_config');
+  console.log('='.repeat(50));
+  console.log('Prompts:');
+  allPrompts.forEach(p => {
+    console.log(`  ${p.name}`);
+  });
   console.log('='.repeat(50));
   info('Boot', 'Server ready for requests');
 });
