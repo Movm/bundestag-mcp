@@ -21,6 +21,7 @@ let stats = {
 
 /**
  * Generate a unique point ID from document type and ID
+ * Returns a positive integer for Qdrant
  */
 function generatePointId(docType, docId) {
   const combined = `${docType}:${docId}`;
@@ -30,7 +31,7 @@ function generatePointId(docType, docId) {
     hash = ((hash << 5) - hash) + char;
     hash = hash & hash;
   }
-  return Math.abs(hash).toString();
+  return Math.abs(hash);
 }
 
 /**
