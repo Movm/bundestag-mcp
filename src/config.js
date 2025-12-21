@@ -32,6 +32,7 @@ export const config = {
     url: process.env.QDRANT_URL || 'http://localhost:6333',
     collection: 'bundestag-docs',
     protocolCollection: 'bundestag-protocol-chunks',
+    documentCollection: 'bundestag-document-chunks',
     vectorSize: 1024  // Mistral embed dimensions
   },
 

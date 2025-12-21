@@ -22,8 +22,8 @@ Falls back gracefully if vector search is unavailable.`,
       .describe('Natural language search query'),
     limit: z.number().int().min(1).max(50).default(10)
       .describe('Maximum number of results (1-50)'),
-    docTypes: z.array(z.enum(['drucksache', 'vorgang', 'aktivitaet'])).optional()
-      .describe('Filter by document types'),
+    docTypes: z.array(z.enum(['drucksache', 'vorgang', 'aktivitaet', 'person'])).optional()
+      .describe('Filter by document types (incl. person for MdB/ministers)'),
     entityTypes: z.array(z.enum([
       'Gesetzentwurf', 'Antrag', 'Kleine Anfrage', 'Große Anfrage',
       'Beschlussempfehlung und Bericht', 'Unterrichtung', 'Entschließungsantrag',
@@ -386,11 +386,206 @@ Shows statistics about indexed protocols and chunks.`,
   }
 };
 
+// ============================================================================
+// Document Section Search Tool (Drucksachen Chunks)
+// ============================================================================
+
+export const searchDocumentSectionsTool = {
+  name: 'bundestag_search_document_sections',
+  description: `Semantic search through document sections (Gesetzentwürfe, Anfragen, Anträge).
+Searches through chunked Drucksachen to find specific paragraphs, questions, or article texts.
+Example: "Regelungen zur Energiewende" or "Fragen zur Migrationspolitik"
+Use this to find specific sections within parliamentary documents.
+Requires QDRANT_ENABLED=true and document indexing to have been run.`,
+
+  inputSchema: {
+    query: z.string().min(1).max(1000)
+      .describe('Natural language search query'),
+    limit: z.number().int().min(1).max(50).default(10)
+      .describe('Maximum number of results (1-50)'),
+    drucksachetyp: z.enum([
+      'Gesetzentwurf', 'Kleine Anfrage', 'Große Anfrage',
+      'Antrag', 'Beschlussempfehlung und Bericht', 'Unterrichtung',
+      'Entschließungsantrag', 'Änderungsantrag', 'Bericht'
+    ]).optional()
+      .describe('Filter by document type'),
+    chunkType: z.enum([
+      'problem', 'loesung', 'alternativen', 'artikel',
+      'begruendung', 'begruendung_allgemein', 'begruendung_besonders',
+      'begruendung_artikel', 'vorbemerkung', 'question',
+      'resolution', 'resolution_point', 'section', 'paragraph'
+    ]).optional()
+      .describe('Filter by section type (e.g., artikel, question, problem)'),
+    wahlperiode: z.number().int().min(1).max(30).optional()
+      .describe('Filter by electoral period (Wahlperiode)'),
+    urheber: z.string().optional()
+      .describe('Filter by author/initiator, e.g., "Bundesregierung", "CDU/CSU"'),
+    dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+      .describe('Filter from date (YYYY-MM-DD)'),
+    dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+      .describe('Filter to date (YYYY-MM-DD)'),
+    scoreThreshold: z.number().min(0).max(1).default(0.3)
+      .describe('Minimum similarity score (0-1, higher = more similar)')
+  },
+
+  async handler(params) {
+    if (!config.qdrant.enabled) {
+      return {
+        error: true,
+        message: 'Semantic search is not enabled. Set QDRANT_ENABLED=true and MISTRAL_API_KEY.',
+        endpoint: 'search_document_sections'
+      };
+    }
+
+    if (!embedding.isAvailable()) {
+      return {
+        error: true,
+        message: 'Embedding service not available. Set MISTRAL_API_KEY environment variable.',
+        endpoint: 'search_document_sections'
+      };
+    }
+
+    if (!qdrant.isDocumentCollectionAvailable()) {
+      return {
+        error: true,
+        message: 'Document collection not available. Run document chunk indexing first.',
+        endpoint: 'search_document_sections'
+      };
+    }
+
+    try {
+      const queryVector = await embedding.embed(params.query);
+
+      const filter = qdrant.buildDocumentFilter({
+        drucksachetyp: params.drucksachetyp,
+        chunkType: params.chunkType,
+        wahlperiode: params.wahlperiode,
+        urheber: params.urheber,
+        dateFrom: params.dateFrom,
+        dateTo: params.dateTo
+      });
+
+      const results = await qdrant.searchDocumentChunks(queryVector, {
+        limit: params.limit,
+        filter,
+        scoreThreshold: params.scoreThreshold
+      });
+
+      return {
+        success: true,
+        endpoint: 'search_document_sections',
+        query: params.query,
+        filters: {
+          drucksachetyp: params.drucksachetyp || 'all',
+          chunkType: params.chunkType || 'all',
+          wahlperiode: params.wahlperiode || 'all',
+          urheber: params.urheber || 'all',
+          dateRange: params.dateFrom || params.dateTo
+            ? `${params.dateFrom || '*'} to ${params.dateTo || '*'}`
+            : 'all'
+        },
+        totalResults: results.length,
+        results: results.map(r => ({
+          score: r.score.toFixed(3),
+          drucksachetyp: r.payload.drucksachetyp,
+          dokumentnummer: r.payload.dokumentnummer,
+          titel: r.payload.titel,
+          chunkType: r.payload.chunk_type,
+          sectionTitle: r.payload.section_title,
+          artikel: r.payload.artikel,
+          questionNumber: r.payload.question_number,
+          text: r.payload.text,
+          textLength: r.payload.text_length,
+          datum: r.payload.datum,
+          wahlperiode: r.payload.wahlperiode,
+          urheber: r.payload.urheber
+        }))
+      };
+
+    } catch (err) {
+      return {
+        error: true,
+        message: `Document section search failed: ${err.message}`,
+        endpoint: 'search_document_sections'
+      };
+    }
+  }
+};
+
+export const triggerDocumentChunkIndexingTool = {
+  name: 'bundestag_trigger_document_indexing',
+  description: `Manually trigger document chunk indexing.
+This indexes Drucksachen (Gesetzentwürfe, Anfragen, Anträge) into searchable chunks.
+Only run this once initially - subsequent runs will skip already-indexed documents.
+Requires QDRANT_ENABLED=true and MISTRAL_API_KEY to be set.`,
+
+  inputSchema: {},
+
+  async handler() {
+    if (!config.qdrant.enabled) {
+      return {
+        error: true,
+        message: 'Qdrant is not enabled. Set QDRANT_ENABLED=true.',
+        endpoint: 'trigger_document_indexing'
+      };
+    }
+
+    if (!embedding.isAvailable()) {
+      return {
+        error: true,
+        message: 'Embedding service not available. Set MISTRAL_API_KEY.',
+        endpoint: 'trigger_document_indexing'
+      };
+    }
+
+    const result = await indexer.triggerDocumentChunkIndexing();
+
+    return {
+      success: result.success,
+      message: result.message,
+      endpoint: 'trigger_document_indexing',
+      documentStats: indexer.getDocumentChunkStats()
+    };
+  }
+};
+
+export const documentSearchStatusTool = {
+  name: 'bundestag_document_search_status',
+  description: `Get the status of the document section search system.
+Shows statistics about indexed documents and chunks.`,
+
+  inputSchema: {},
+
+  async handler() {
+    const documentCollectionInfo = await qdrant.getDocumentCollectionInfo();
+    const documentStats = indexer.getDocumentChunkStats();
+
+    return {
+      success: true,
+      endpoint: 'document_search_status',
+      embeddingService: {
+        available: embedding.isAvailable(),
+        model: config.mistral.embeddingModel
+      },
+      documentCollection: {
+        enabled: config.qdrant.enabled,
+        available: qdrant.isDocumentCollectionAvailable(),
+        collection: config.qdrant.documentCollection,
+        ...(documentCollectionInfo || { status: 'unavailable' })
+      },
+      indexer: documentStats
+    };
+  }
+};
+
 export const semanticSearchTools = [
   semanticSearchTool,
   semanticSearchStatusTool,
   triggerIndexingTool,
   searchSpeechesTool,
   triggerProtocolIndexingTool,
-  protocolSearchStatusTool
+  protocolSearchStatusTool,
+  searchDocumentSectionsTool,
+  triggerDocumentChunkIndexingTool,
+  documentSearchStatusTool
 ];

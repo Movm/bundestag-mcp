@@ -623,3 +623,273 @@ export async function protocolChunksExist(protokollId) {
     return false;
   }
 }
+
+// ============================================================================
+// Document Chunks Collection (Drucksachen)
+// ============================================================================
+
+let isDocumentCollectionHealthy = false;
+
+/**
+ * Initialize the document chunks collection if it doesn't exist
+ */
+export async function ensureDocumentCollection() {
+  const qdrant = getClient();
+  if (!qdrant) return false;
+
+  try {
+    const collections = await qdrant.getCollections();
+    const exists = collections.collections.some(c => c.name === config.qdrant.documentCollection);
+
+    if (!exists) {
+      await qdrant.createCollection(config.qdrant.documentCollection, {
+        vectors: {
+          size: config.qdrant.vectorSize,
+          distance: 'Cosine'
+        }
+      });
+      logger.info('QDRANT', `Created document collection: ${config.qdrant.documentCollection}`);
+
+      // Create indexes for document-specific fields
+      await qdrant.createPayloadIndex(config.qdrant.documentCollection, {
+        field_name: 'drucksache_id',
+        field_schema: 'integer'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.documentCollection, {
+        field_name: 'dokumentnummer',
+        field_schema: 'keyword'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.documentCollection, {
+        field_name: 'drucksachetyp',
+        field_schema: 'keyword'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.documentCollection, {
+        field_name: 'chunk_type',
+        field_schema: 'keyword'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.documentCollection, {
+        field_name: 'wahlperiode',
+        field_schema: 'integer'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.documentCollection, {
+        field_name: 'datum',
+        field_schema: 'keyword'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.documentCollection, {
+        field_name: 'urheber',
+        field_schema: 'keyword'
+      });
+      logger.info('QDRANT', 'Created document collection indexes');
+    }
+
+    isDocumentCollectionHealthy = true;
+    return true;
+  } catch (err) {
+    logger.error('QDRANT', `Failed to ensure document collection: ${err.message}`);
+    isDocumentCollectionHealthy = false;
+    return false;
+  }
+}
+
+/**
+ * Check if document collection is available
+ */
+export function isDocumentCollectionAvailable() {
+  return config.qdrant.enabled && isDocumentCollectionHealthy;
+}
+
+/**
+ * Upsert document chunks
+ * @param {Array<{id: number, vector: number[], payload: object}>} points
+ */
+export async function upsertDocumentChunks(points) {
+  const qdrant = getClient();
+  if (!qdrant) {
+    throw new Error('Qdrant not available');
+  }
+
+  const startTime = Date.now();
+
+  try {
+    await qdrant.upsert(config.qdrant.documentCollection, {
+      wait: true,
+      points: points.map(p => ({
+        id: p.id,
+        vector: p.vector,
+        payload: p.payload
+      }))
+    });
+
+    const elapsed = Date.now() - startTime;
+    logger.debug('QDRANT', `Upserted ${points.length} document chunks in ${elapsed}ms`);
+  } catch (err) {
+    logger.error('QDRANT', `Failed to upsert document chunks: ${err.message}`);
+    throw err;
+  }
+}
+
+/**
+ * Search for document chunks
+ * @param {number[]} vector - Query embedding
+ * @param {object} options - Search options
+ * @returns {Promise<Array<{id: number, score: number, payload: object}>>}
+ */
+export async function searchDocumentChunks(vector, options = {}) {
+  const qdrant = getClient();
+  if (!qdrant) {
+    throw new Error('Qdrant not available');
+  }
+
+  const {
+    limit = 10,
+    filter = null,
+    scoreThreshold = 0.0
+  } = options;
+
+  const startTime = Date.now();
+
+  try {
+    const results = await qdrant.search(config.qdrant.documentCollection, {
+      vector,
+      limit,
+      filter,
+      score_threshold: scoreThreshold,
+      with_payload: true
+    });
+
+    const elapsed = Date.now() - startTime;
+    logger.debug('QDRANT', `Document search returned ${results.length} results in ${elapsed}ms`);
+
+    return results.map(r => ({
+      id: r.id,
+      score: r.score,
+      payload: r.payload
+    }));
+  } catch (err) {
+    logger.error('QDRANT', `Document search failed: ${err.message}`);
+    throw err;
+  }
+}
+
+/**
+ * Build a Qdrant filter for document chunk search
+ * @param {object} params - Search parameters
+ * @returns {object|null} - Qdrant filter or null
+ */
+export function buildDocumentFilter(params) {
+  const conditions = [];
+
+  if (params.drucksachetyp) {
+    conditions.push({
+      key: 'drucksachetyp',
+      match: { value: params.drucksachetyp }
+    });
+  }
+
+  if (params.drucksachetypen && params.drucksachetypen.length > 0) {
+    conditions.push({
+      key: 'drucksachetyp',
+      match: { any: params.drucksachetypen }
+    });
+  }
+
+  if (params.chunkType) {
+    conditions.push({
+      key: 'chunk_type',
+      match: { value: params.chunkType }
+    });
+  }
+
+  if (params.chunkTypes && params.chunkTypes.length > 0) {
+    conditions.push({
+      key: 'chunk_type',
+      match: { any: params.chunkTypes }
+    });
+  }
+
+  if (params.wahlperiode) {
+    conditions.push({
+      key: 'wahlperiode',
+      match: { value: params.wahlperiode }
+    });
+  }
+
+  if (params.urheber) {
+    conditions.push({
+      key: 'urheber',
+      match: { value: params.urheber }
+    });
+  }
+
+  if (params.drucksacheId) {
+    conditions.push({
+      key: 'drucksache_id',
+      match: { value: params.drucksacheId }
+    });
+  }
+
+  if (params.dateFrom || params.dateTo) {
+    const dateCondition = { key: 'datum' };
+    if (params.dateFrom && params.dateTo) {
+      dateCondition.range = { gte: params.dateFrom, lte: params.dateTo };
+    } else if (params.dateFrom) {
+      dateCondition.range = { gte: params.dateFrom };
+    } else {
+      dateCondition.range = { lte: params.dateTo };
+    }
+    conditions.push(dateCondition);
+  }
+
+  if (conditions.length === 0) {
+    return null;
+  }
+
+  return { must: conditions };
+}
+
+/**
+ * Get document collection statistics
+ */
+export async function getDocumentCollectionInfo() {
+  const qdrant = getClient();
+  if (!qdrant) {
+    return null;
+  }
+
+  try {
+    const info = await qdrant.getCollection(config.qdrant.documentCollection);
+    return {
+      pointsCount: info.points_count,
+      vectorsCount: info.vectors_count,
+      status: info.status,
+      optimizerStatus: info.optimizer_status
+    };
+  } catch (err) {
+    logger.warn('QDRANT', `Failed to get document collection info: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Check if document chunks exist for a given drucksache_id
+ * @param {number} drucksacheId
+ * @returns {Promise<boolean>}
+ */
+export async function documentChunksExist(drucksacheId) {
+  const qdrant = getClient();
+  if (!qdrant) return false;
+
+  try {
+    const results = await qdrant.scroll(config.qdrant.documentCollection, {
+      filter: {
+        must: [{ key: 'drucksache_id', match: { value: drucksacheId } }]
+      },
+      limit: 1,
+      with_payload: false,
+      with_vector: false
+    });
+    return results.points && results.points.length > 0;
+  } catch (err) {
+    return false;
+  }
+}
