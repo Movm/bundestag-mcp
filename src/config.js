@@ -27,6 +27,25 @@ export const config = {
     maxMetadataEntries: 50
   },
 
+  qdrant: {
+    enabled: process.env.QDRANT_ENABLED === 'true',
+    url: process.env.QDRANT_URL || 'http://localhost:6333',
+    collection: 'bundestag-docs',
+    vectorSize: 1024  // Mistral embed dimensions
+  },
+
+  mistral: {
+    apiKey: process.env.MISTRAL_API_KEY,
+    embeddingModel: 'mistral-embed',
+    batchSize: 32
+  },
+
+  indexer: {
+    enabled: process.env.INDEXER_ENABLED === 'true',
+    intervalMinutes: parseInt(process.env.INDEXER_INTERVAL_MINUTES) || 15,
+    wahlperioden: (process.env.INDEXER_WAHLPERIODEN || '19,20').split(',').map(Number)
+  },
+
   entityTypes: {
     drucksachetypen: [
       'Gesetzentwurf',

@@ -15,6 +15,7 @@ console.log('[Boot] Dependencies loaded');
 console.log('[Boot] Loading config...');
 import { config, validateConfig } from './config.js';
 import { allTools } from './tools/search.js';
+import { semanticSearchTools } from './tools/semanticSearch.js';
 import { clientConfigTool } from './tools/clientConfig.js';
 import { getCacheStats } from './utils/cache.js';
 import { info, error, getStats } from './utils/logger.js';
@@ -28,6 +29,8 @@ import {
   metricsMiddleware,
   updateActiveSessions
 } from './utils/metrics.js';
+import * as indexer from './jobs/indexer.js';
+import * as qdrantService from './services/qdrantService.js';
 console.log('[Boot] Config loaded');
 
 // Validate configuration
@@ -102,7 +105,8 @@ function createMcpServer(baseUrl) {
   // === MCP TOOLS ===
 
   // Register all search/entity tools
-  for (const tool of allTools) {
+  const allToolsCombined = [...allTools, ...semanticSearchTools];
+  for (const tool of allToolsCombined) {
     server.tool(
       tool.name,
       tool.inputSchema,
@@ -221,11 +225,12 @@ app.get('/metrics/prometheus', async (req, res) => {
   }
 });
 
-// Deep health check - verifies DIP API connectivity
+// Deep health check - verifies DIP API and Qdrant connectivity
 app.get('/health/deep', async (req, res) => {
   const checks = {
     server: 'healthy',
     dipApi: 'unknown',
+    qdrant: 'unknown',
     cache: 'healthy',
     memory: 'healthy'
   };
@@ -260,6 +265,20 @@ app.get('/health/deep', async (req, res) => {
     overallHealthy = false;
   }
 
+  // Check Qdrant connectivity
+  if (config.qdrant.enabled) {
+    const qdrantHealthy = await qdrantService.healthCheck();
+    if (qdrantHealthy) {
+      const qdrantInfo = await qdrantService.getCollectionInfo();
+      checks.qdrant = 'healthy';
+      checks.qdrantInfo = qdrantInfo;
+    } else {
+      checks.qdrant = 'unhealthy';
+    }
+  } else {
+    checks.qdrant = 'disabled';
+  }
+
   // Check memory usage
   const memUsage = process.memoryUsage();
   const heapUsedMB = memUsage.heapUsed / 1024 / 1024;
@@ -277,6 +296,9 @@ app.get('/health/deep', async (req, res) => {
     entityEntries: cacheStats.entities.entries,
     apiHitRate: cacheStats.apiResponses.hitRate
   };
+
+  // Add indexer stats
+  checks.indexer = indexer.getStats();
 
   res.status(overallHealthy ? 200 : 503).json({
     status: overallHealthy ? 'healthy' : 'degraded',
@@ -369,6 +391,21 @@ app.get('/.well-known/mcp.json', (req, res) => {
         annotations: { readOnlyHint: true, idempotentHint: true }
       },
       {
+        name: 'bundestag_semantic_search',
+        description: 'Semantic search using AI embeddings',
+        annotations: { readOnlyHint: true, idempotentHint: true }
+      },
+      {
+        name: 'bundestag_semantic_search_status',
+        description: 'Get semantic search system status',
+        annotations: { readOnlyHint: true, idempotentHint: true }
+      },
+      {
+        name: 'bundestag_trigger_indexing',
+        description: 'Trigger document indexing',
+        annotations: { readOnlyHint: false, idempotentHint: false }
+      },
+      {
         name: 'get_client_config',
         description: 'Generate MCP client configurations',
         annotations: { readOnlyHint: true, idempotentHint: true }
@@ -439,7 +476,7 @@ app.get('/info', (req, res) => {
       config: `${baseUrl}/config/:client`,
       info: `${baseUrl}/info`
     },
-    tools: allTools.map(t => ({
+    tools: [...allTools, ...semanticSearchTools].map(t => ({
       name: t.name,
       description: t.description,
       annotations: { readOnlyHint: true, idempotentHint: true }
@@ -574,6 +611,9 @@ async function gracefulShutdown(signal) {
 
   info('Shutdown', `Received ${signal}, starting graceful shutdown...`);
 
+  // Stop the background indexer
+  indexer.stop();
+
   // Stop accepting new connections
   if (httpServer) {
     httpServer.close(() => {
@@ -653,7 +693,7 @@ httpServer = app.listen(PORT, () => {
   });
   console.log('='.repeat(50));
   console.log('Tools:');
-  allTools.forEach(t => {
+  [...allTools, ...semanticSearchTools].forEach(t => {
     console.log(`  ${t.name}`);
   });
   console.log('  get_client_config');
@@ -662,6 +702,22 @@ httpServer = app.listen(PORT, () => {
   allPrompts.forEach(p => {
     console.log(`  ${p.name}`);
   });
+  console.log('='.repeat(50));
+
+  // Start background indexer if enabled
+  if (config.qdrant.enabled && config.indexer.enabled) {
+    console.log('[Boot] Starting background indexer...');
+    indexer.start().then(() => {
+      console.log('[Boot] Background indexer started');
+    }).catch(err => {
+      console.error('[Boot] Failed to start indexer:', err.message);
+    });
+  } else if (config.qdrant.enabled) {
+    console.log('[Boot] Qdrant enabled, indexer disabled. Use INDEXER_ENABLED=true to enable.');
+  } else {
+    console.log('[Boot] Semantic search disabled (QDRANT_ENABLED=false)');
+  }
+
   console.log('='.repeat(50));
   info('Boot', 'Server ready for requests');
 });
