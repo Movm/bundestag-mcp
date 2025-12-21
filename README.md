@@ -6,8 +6,19 @@
 
 A production-ready [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that provides access to the German Bundestag's parliamentary documentation system (DIP API).
 
+## Public Instance
+
+A public instance is available at:
+
+```
+https://bundestagapi.moritz-waechter.de/mcp
+```
+
+You can use this directly in your MCP client configuration without running your own server.
+
 ## Table of Contents
 
+- [Public Instance](#public-instance)
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [MCP Tools](#mcp-tools)
@@ -180,6 +191,8 @@ Guided workflows for common parliamentary research tasks:
 
 ## Client Configuration
 
+> **Tip:** Use the public instance `https://bundestagapi.moritz-waechter.de/mcp` or run your own with `http://localhost:3000/mcp`
+
 ### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
@@ -188,7 +201,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 {
   "mcpServers": {
     "bundestag": {
-      "url": "http://localhost:3000/mcp"
+      "url": "https://bundestagapi.moritz-waechter.de/mcp"
     }
   }
 }
@@ -202,7 +215,7 @@ Add to `.cursor/mcp.json`:
 {
   "mcpServers": {
     "bundestag": {
-      "url": "http://localhost:3000/mcp"
+      "url": "https://bundestagapi.moritz-waechter.de/mcp"
     }
   }
 }
@@ -217,7 +230,7 @@ Add to settings:
   "mcp.servers": {
     "bundestag": {
       "type": "http",
-      "url": "http://localhost:3000/mcp"
+      "url": "https://bundestagapi.moritz-waechter.de/mcp"
     }
   }
 }
@@ -225,23 +238,18 @@ Add to settings:
 
 ### ChatGPT
 
-The server is fully compatible with ChatGPT as a connector.
+The server is fully compatible with ChatGPT as a connector. Use the public instance or deploy your own.
 
-1. **Deploy your server** to a public URL (or use ngrok for development):
-   ```bash
-   ngrok http 3000
-   ```
-
-2. **Enable developer mode** in ChatGPT:
+1. **Enable developer mode** in ChatGPT:
    - Go to **Settings → Apps & Connectors → Advanced settings**
    - Enable developer mode
 
-3. **Add the connector**:
+2. **Add the connector**:
    - Go to **Settings → Connectors → Create**
-   - Paste your public URL with `/mcp` path (e.g., `https://xxx.ngrok.app/mcp`)
+   - Use URL: `https://bundestagapi.moritz-waechter.de/mcp`
    - Name it "Bundestag" and provide a description
 
-4. **Use in chat**:
+3. **Use in chat**:
    - Click the **+** button in a new chat
    - Select your connector from the **More** menu
    - Ask about German parliamentary documents!
