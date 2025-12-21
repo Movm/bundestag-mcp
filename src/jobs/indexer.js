@@ -115,10 +115,19 @@ async function processBatch(batch, docType, wahlperiode) {
 }
 
 /**
- * Index documents of a specific type with pipelining
+ * Sleep for specified milliseconds
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Index documents of a specific type
+ * Note: No pipelining to avoid DIP API rate limits
  */
 async function indexDocumentType(docType, searchFn, wahlperiode) {
-  const BATCH_SIZE = 64; // Larger batches for Mistral efficiency
+  const BATCH_SIZE = 64;
+  const API_DELAY_MS = 500; // Delay between API calls to avoid rate limits
   let cursor = null;
   let indexed = 0;
   let skipped = 0;
@@ -126,11 +135,11 @@ async function indexDocumentType(docType, searchFn, wahlperiode) {
 
   logger.info('INDEXER', `Indexing ${docType} for WP${wahlperiode}`);
 
-  // Fetch first page
-  let currentResult = await searchFn({ wahlperiode, limit: 100, cursor }, { useCache: false });
-
   while (hasMore) {
     try {
+      // Fetch page with delay to avoid rate limits
+      const currentResult = await searchFn({ wahlperiode, limit: 100, cursor }, { useCache: false });
+
       if (!currentResult.documents || currentResult.documents.length === 0) {
         hasMore = false;
         continue;
@@ -140,11 +149,6 @@ async function indexDocumentType(docType, searchFn, wahlperiode) {
       cursor = currentResult.cursor;
       hasMore = !!cursor && documents.length > 0;
 
-      // Start fetching next page while processing current (pipelining)
-      const nextFetchPromise = hasMore
-        ? searchFn({ wahlperiode, limit: 100, cursor }, { useCache: false })
-        : Promise.resolve(null);
-
       // Process current page in batches
       for (let i = 0; i < documents.length; i += BATCH_SIZE) {
         const batch = documents.slice(i, i + BATCH_SIZE);
@@ -153,16 +157,23 @@ async function indexDocumentType(docType, searchFn, wahlperiode) {
         skipped += result.skipped;
       }
 
-      // Wait for next page (should already be ready due to pipelining)
-      currentResult = await nextFetchPromise;
-
       if (indexed > 0 || skipped > 0) {
         logger.debug('INDEXER', `${docType} WP${wahlperiode}: ${indexed} indexed, ${skipped} skipped`);
+      }
+
+      // Delay before next API call to avoid rate limits
+      if (hasMore) {
+        await sleep(API_DELAY_MS);
       }
 
     } catch (err) {
       logger.error('INDEXER', `Failed to fetch ${docType}: ${err.message}`);
       stats.errors++;
+      // On rate limit, wait longer before giving up
+      if (err.message.includes('Rate-Limit') || err.message.includes('Enodia')) {
+        logger.warn('INDEXER', 'Rate limited, waiting 30s before retry...');
+        await sleep(30000);
+      }
       hasMore = false;
     }
   }
