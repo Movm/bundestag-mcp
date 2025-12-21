@@ -1,0 +1,17 @@
+services:
+  bundestag-mcp:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DIP_API_KEY=${DIP_API_KEY:-OSOegLs.PR2lwJ1dwCeje9vTj7FPOt3hvpYKtwKkhw}
+      - PORT=3000
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PUBLIC_URL=${PUBLIC_URL:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
+    restart: unless-stopped
