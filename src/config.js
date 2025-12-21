@@ -43,7 +43,7 @@ export const config = {
   indexer: {
     enabled: process.env.INDEXER_ENABLED === 'true',
     intervalMinutes: parseInt(process.env.INDEXER_INTERVAL_MINUTES) || 15,
-    wahlperioden: (process.env.INDEXER_WAHLPERIODEN || '19,20').split(',').map(Number)
+    wahlperioden: (process.env.INDEXER_WAHLPERIODEN || '20,19').split(',').map(Number)
   },
 
   entityTypes: {

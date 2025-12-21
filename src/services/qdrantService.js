@@ -140,6 +140,30 @@ export async function upsertPoints(points) {
 }
 
 /**
+ * Check if points exist in the collection
+ * @param {number[]} pointIds - Array of point IDs to check
+ * @returns {Promise<Array<{id: number}>>} - Array of existing points
+ */
+export async function getPoints(pointIds) {
+  const qdrant = getClient();
+  if (!qdrant || pointIds.length === 0) {
+    return [];
+  }
+
+  try {
+    const result = await qdrant.retrieve(config.qdrant.collection, {
+      ids: pointIds,
+      with_payload: false,
+      with_vector: false
+    });
+    return result || [];
+  } catch (err) {
+    logger.debug('QDRANT', `getPoints failed: ${err.message}`);
+    return [];
+  }
+}
+
+/**
  * Search for similar documents
  * @param {number[]} vector - Query embedding
  * @param {object} options - Search options

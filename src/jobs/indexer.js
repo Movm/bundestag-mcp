@@ -1,6 +1,11 @@
 /**
  * Background Document Indexer for Bundestag MCP Server
  * Fetches documents from DIP API and indexes them in Qdrant
+ *
+ * Optimizations:
+ * - Pipelined fetch/embed/upsert operations
+ * - Larger embedding batches (64 docs)
+ * - Skip already-indexed documents (incremental indexing)
  */
 
 import { config } from '../config.js';
@@ -16,12 +21,13 @@ let stats = {
   totalIndexed: 0,
   lastRunDuration: 0,
   lastRunDocuments: 0,
+  lastRunSkipped: 0,
   errors: 0
 };
 
 /**
  * Generate a unique point ID from document type and ID
- * Returns a positive integer for Qdrant
+ * Uses deterministic hash for consistent IDs across runs
  */
 function generatePointId(docType, docId) {
   const combined = `${docType}:${docId}`;
@@ -35,78 +41,124 @@ function generatePointId(docType, docId) {
 }
 
 /**
- * Index documents of a specific type
+ * Check which documents are already indexed in Qdrant
+ * Returns Set of existing point IDs
+ */
+async function getExistingPointIds(pointIds) {
+  try {
+    const existing = await qdrant.getPoints(pointIds);
+    return new Set(existing.map(p => p.id));
+  } catch (err) {
+    logger.warn('INDEXER', `Could not check existing points: ${err.message}`);
+    return new Set();
+  }
+}
+
+/**
+ * Process a batch of documents: filter, embed, upsert
+ * Returns count of newly indexed documents
+ */
+async function processBatch(batch, docType, wahlperiode) {
+  const pointIds = batch.map(doc => generatePointId(docType, doc.id));
+
+  // Check which docs are already indexed (skip them)
+  const existingIds = await getExistingPointIds(pointIds);
+  const newDocs = batch.filter((_, idx) => !existingIds.has(pointIds[idx]));
+
+  if (newDocs.length === 0) {
+    return { indexed: 0, skipped: batch.length };
+  }
+
+  // Generate embeddings for new docs only
+  const textsToEmbed = newDocs.map(doc => embedding.prepareDocumentText(doc));
+
+  let embeddings;
+  try {
+    embeddings = await embedding.embedBatch(textsToEmbed);
+  } catch (err) {
+    logger.error('INDEXER', `Embedding failed: ${err.message}`);
+    stats.errors++;
+    return { indexed: 0, skipped: existingIds.size };
+  }
+
+  // Build points for Qdrant
+  const points = newDocs.map((doc, idx) => ({
+    id: generatePointId(docType, doc.id),
+    vector: embeddings[idx],
+    payload: {
+      doc_id: String(doc.id),
+      doc_type: docType,
+      entity_type: doc.drucksachetyp || doc.vorgangstyp || doc.aktivitaetsart || null,
+      wahlperiode: doc.wahlperiode || wahlperiode,
+      date: doc.datum || doc.aktualisiert || null,
+      title: doc.titel || null,
+      abstract: doc.abstract || null,
+      dokumentnummer: doc.dokumentnummer || null,
+      authors: doc.autoren || doc.urheber || [],
+      descriptors: doc.deskriptoren || [],
+      sachgebiet: doc.sachgebiet || null,
+      initiative: doc.initiative || null,
+      fraktion: doc.fraktion || null,
+      ressort: doc.ressort || null
+    }
+  }));
+
+  // Upsert to Qdrant
+  try {
+    await qdrant.upsertPoints(points);
+    return { indexed: points.length, skipped: existingIds.size };
+  } catch (err) {
+    logger.error('INDEXER', `Qdrant upsert failed: ${err.message}`);
+    stats.errors++;
+    return { indexed: 0, skipped: existingIds.size };
+  }
+}
+
+/**
+ * Index documents of a specific type with pipelining
  */
 async function indexDocumentType(docType, searchFn, wahlperiode) {
-  const batchSize = config.mistral.batchSize;
+  const BATCH_SIZE = 64; // Larger batches for Mistral efficiency
   let cursor = null;
   let indexed = 0;
+  let skipped = 0;
   let hasMore = true;
 
   logger.info('INDEXER', `Indexing ${docType} for WP${wahlperiode}`);
 
+  // Fetch first page
+  let currentResult = await searchFn({ wahlperiode, limit: 100, cursor }, { useCache: false });
+
   while (hasMore) {
     try {
-      const result = await searchFn({
-        wahlperiode,
-        limit: 100,
-        cursor
-      }, { useCache: false });
-
-      if (!result.documents || result.documents.length === 0) {
+      if (!currentResult.documents || currentResult.documents.length === 0) {
         hasMore = false;
         continue;
       }
 
-      const documents = result.documents;
-      cursor = result.cursor;
+      const documents = currentResult.documents;
+      cursor = currentResult.cursor;
       hasMore = !!cursor && documents.length > 0;
 
-      for (let i = 0; i < documents.length; i += batchSize) {
-        const batch = documents.slice(i, i + batchSize);
+      // Start fetching next page while processing current (pipelining)
+      const nextFetchPromise = hasMore
+        ? searchFn({ wahlperiode, limit: 100, cursor }, { useCache: false })
+        : Promise.resolve(null);
 
-        const textsToEmbed = batch.map(doc => embedding.prepareDocumentText(doc));
-
-        let embeddings;
-        try {
-          embeddings = await embedding.embedBatch(textsToEmbed);
-        } catch (err) {
-          logger.error('INDEXER', `Embedding failed for batch: ${err.message}`);
-          stats.errors++;
-          continue;
-        }
-
-        const points = batch.map((doc, idx) => ({
-          id: generatePointId(docType, doc.id),
-          vector: embeddings[idx],
-          payload: {
-            doc_id: String(doc.id),
-            doc_type: docType,
-            entity_type: doc.drucksachetyp || doc.vorgangstyp || doc.aktivitaetsart || null,
-            wahlperiode: doc.wahlperiode || wahlperiode,
-            date: doc.datum || doc.aktualisiert || null,
-            title: doc.titel || null,
-            abstract: doc.abstract || null,
-            dokumentnummer: doc.dokumentnummer || null,
-            authors: doc.autoren || doc.urheber || [],
-            descriptors: doc.deskriptoren || [],
-            sachgebiet: doc.sachgebiet || null,
-            initiative: doc.initiative || null,
-            fraktion: doc.fraktion || null,
-            ressort: doc.ressort || null
-          }
-        }));
-
-        try {
-          await qdrant.upsertPoints(points);
-          indexed += points.length;
-        } catch (err) {
-          logger.error('INDEXER', `Qdrant upsert failed: ${err.message}`);
-          stats.errors++;
-        }
+      // Process current page in batches
+      for (let i = 0; i < documents.length; i += BATCH_SIZE) {
+        const batch = documents.slice(i, i + BATCH_SIZE);
+        const result = await processBatch(batch, docType, wahlperiode);
+        indexed += result.indexed;
+        skipped += result.skipped;
       }
 
-      logger.debug('INDEXER', `Indexed ${indexed} ${docType} documents so far`);
+      // Wait for next page (should already be ready due to pipelining)
+      currentResult = await nextFetchPromise;
+
+      if (indexed > 0 || skipped > 0) {
+        logger.debug('INDEXER', `${docType} WP${wahlperiode}: ${indexed} indexed, ${skipped} skipped`);
+      }
 
     } catch (err) {
       logger.error('INDEXER', `Failed to fetch ${docType}: ${err.message}`);
@@ -115,7 +167,8 @@ async function indexDocumentType(docType, searchFn, wahlperiode) {
     }
   }
 
-  return indexed;
+  logger.info('INDEXER', `Completed ${docType} WP${wahlperiode}: ${indexed} new, ${skipped} skipped`);
+  return { indexed, skipped };
 }
 
 /**
@@ -144,6 +197,7 @@ async function runIndexingPass() {
   isRunning = true;
   const startTime = Date.now();
   let totalIndexed = 0;
+  let totalSkipped = 0;
 
   logger.info('INDEXER', 'Starting indexing pass', {
     wahlperioden: config.indexer.wahlperioden
@@ -151,11 +205,16 @@ async function runIndexingPass() {
 
   try {
     for (const wp of config.indexer.wahlperioden) {
-      totalIndexed += await indexDocumentType('drucksache', api.searchDrucksachen, wp);
-
-      totalIndexed += await indexDocumentType('vorgang', api.searchVorgaenge, wp);
-
-      totalIndexed += await indexDocumentType('aktivitaet', api.searchAktivitaeten, wp);
+      // Index each document type for this wahlperiode
+      for (const [docType, searchFn] of [
+        ['drucksache', api.searchDrucksachen],
+        ['vorgang', api.searchVorgaenge],
+        ['aktivitaet', api.searchAktivitaeten]
+      ]) {
+        const result = await indexDocumentType(docType, searchFn, wp);
+        totalIndexed += result.indexed;
+        totalSkipped += result.skipped;
+      }
     }
 
     const duration = Date.now() - startTime;
@@ -163,10 +222,12 @@ async function runIndexingPass() {
     stats.totalIndexed += totalIndexed;
     stats.lastRunDuration = duration;
     stats.lastRunDocuments = totalIndexed;
+    stats.lastRunSkipped = totalSkipped;
     lastIndexTime = new Date();
 
     logger.info('INDEXER', `Indexing pass complete`, {
-      documentsIndexed: totalIndexed,
+      newDocuments: totalIndexed,
+      skipped: totalSkipped,
       durationMs: duration,
       durationMinutes: (duration / 60000).toFixed(2)
     });
@@ -204,8 +265,10 @@ export async function start() {
     return;
   }
 
+  // Start first indexing pass
   runIndexingPass();
 
+  // Schedule periodic runs
   const intervalMs = config.indexer.intervalMinutes * 60 * 1000;
   indexerInterval = setInterval(runIndexingPass, intervalMs);
 }
@@ -232,6 +295,7 @@ export function getStats() {
     totalIndexed: stats.totalIndexed,
     lastRunDuration: stats.lastRunDuration,
     lastRunDocuments: stats.lastRunDocuments,
+    lastRunSkipped: stats.lastRunSkipped,
     errors: stats.errors,
     wahlperioden: config.indexer.wahlperioden,
     intervalMinutes: config.indexer.intervalMinutes
