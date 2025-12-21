@@ -35,14 +35,14 @@ console.log('[Boot] Setting up Express...');
 const app = express();
 app.use(express.json());
 
-// CORS middleware
+// CORS middleware - compatible with ChatGPT connector requirements
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id');
   res.header('Access-Control-Expose-Headers', 'Mcp-Session-Id');
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+    return res.sendStatus(204); // 204 No Content for preflight
   }
   next();
 });
@@ -134,6 +134,11 @@ function createMcpServer(baseUrl) {
 
   return server;
 }
+
+// Root endpoint for basic health check (ChatGPT connector wizard)
+app.get('/', (req, res) => {
+  res.type('text/plain').send('Bundestag MCP Server');
+});
 
 // Health Check Endpoint
 app.get('/health', (req, res) => {
@@ -327,15 +332,56 @@ app.get('/info', (req, res) => {
 });
 
 // MCP POST Endpoint (Main communication)
+// Supports both stateful (Claude, Cursor) and stateless (ChatGPT) modes
 app.post('/mcp', async (req, res) => {
   const sessionId = req.headers['mcp-session-id'];
   let transport;
+  let server;
 
+  // Check if this is an existing session (stateful mode)
   if (sessionId && transports[sessionId]) {
     transport = transports[sessionId];
-  } else if (!sessionId && isInitializeRequest(req.body)) {
+    await transport.handleRequest(req, res, req.body);
+    return;
+  }
+
+  // New connection - determine mode based on client
+  // ChatGPT doesn't send session headers, so we use stateless mode
+  const useStatelessMode = !sessionId;
+  const baseUrl = getBaseUrl(req);
+
+  if (useStatelessMode) {
+    // Stateless mode for ChatGPT
+    // Create fresh server and transport for each request
+    server = createMcpServer(baseUrl);
+    transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined, // stateless mode
+      enableJsonResponse: true
+    });
+
+    res.on('close', () => {
+      transport.close();
+      server.close();
+    });
+
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (err) {
+      error('MCP', `Request failed: ${err.message}`);
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: { code: -32603, message: 'Internal error' },
+          id: null
+        });
+      }
+    }
+  } else if (isInitializeRequest(req.body)) {
+    // Stateful mode for Claude, Cursor, etc.
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
+      enableJsonResponse: true,
       onsessioninitialized: (id) => {
         transports[id] = transport;
         info('Session', `New session: ${id}`);
@@ -352,22 +398,19 @@ app.post('/mcp', async (req, res) => {
       }
     };
 
-    const baseUrl = getBaseUrl(req);
-    const server = createMcpServer(baseUrl);
+    server = createMcpServer(baseUrl);
     await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
   } else {
     res.status(400).json({
       jsonrpc: '2.0',
       error: { code: -32000, message: 'Invalid session' },
       id: null
     });
-    return;
   }
-
-  await transport.handleRequest(req, res, req.body);
 });
 
-// MCP GET Endpoint (SSE Stream)
+// MCP GET Endpoint (SSE Stream) - for stateful clients
 app.get('/mcp', async (req, res) => {
   const sessionId = req.headers['mcp-session-id'];
   const transport = transports[sessionId];
@@ -379,7 +422,7 @@ app.get('/mcp', async (req, res) => {
   }
 });
 
-// MCP DELETE Endpoint (Close session)
+// MCP DELETE Endpoint (Close session) - for stateful clients
 app.delete('/mcp', async (req, res) => {
   const sessionId = req.headers['mcp-session-id'];
   const transport = transports[sessionId];

@@ -148,6 +148,29 @@ Add to settings:
 }
 ```
 
+### ChatGPT
+
+The server is fully compatible with ChatGPT as a connector.
+
+1. **Deploy your server** to a public URL (or use ngrok for development):
+   ```bash
+   ngrok http 3000
+   ```
+
+2. **Enable developer mode** in ChatGPT:
+   - Go to **Settings → Apps & Connectors → Advanced settings**
+   - Enable developer mode
+
+3. **Add the connector**:
+   - Go to **Settings → Connectors → Create**
+   - Paste your public URL with `/mcp` path (e.g., `https://xxx.ngrok.app/mcp`)
+   - Name it "Bundestag" and provide a description
+
+4. **Use in chat**:
+   - Click the **+** button in a new chat
+   - Select your connector from the **More** menu
+   - Ask about German parliamentary documents!
+
 ## Docker
 
 ```bash
