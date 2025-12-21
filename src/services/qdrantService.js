@@ -338,3 +338,288 @@ export async function deletePoints(ids) {
     throw err;
   }
 }
+
+// ============================================================================
+// Protocol Chunks Collection
+// ============================================================================
+
+let isProtocolCollectionHealthy = false;
+
+/**
+ * Initialize the protocol chunks collection if it doesn't exist
+ */
+export async function ensureProtocolCollection() {
+  const qdrant = getClient();
+  if (!qdrant) return false;
+
+  try {
+    const collections = await qdrant.getCollections();
+    const exists = collections.collections.some(c => c.name === config.qdrant.protocolCollection);
+
+    if (!exists) {
+      await qdrant.createCollection(config.qdrant.protocolCollection, {
+        vectors: {
+          size: config.qdrant.vectorSize,
+          distance: 'Cosine'
+        }
+      });
+      logger.info('QDRANT', `Created protocol collection: ${config.qdrant.protocolCollection}`);
+
+      // Create indexes for protocol-specific fields
+      await qdrant.createPayloadIndex(config.qdrant.protocolCollection, {
+        field_name: 'protokoll_id',
+        field_schema: 'integer'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.protocolCollection, {
+        field_name: 'speaker',
+        field_schema: 'keyword'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.protocolCollection, {
+        field_name: 'speaker_party',
+        field_schema: 'keyword'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.protocolCollection, {
+        field_name: 'speaker_state',
+        field_schema: 'keyword'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.protocolCollection, {
+        field_name: 'top',
+        field_schema: 'keyword'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.protocolCollection, {
+        field_name: 'wahlperiode',
+        field_schema: 'integer'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.protocolCollection, {
+        field_name: 'datum',
+        field_schema: 'keyword'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.protocolCollection, {
+        field_name: 'herausgeber',
+        field_schema: 'keyword'
+      });
+      await qdrant.createPayloadIndex(config.qdrant.protocolCollection, {
+        field_name: 'chunk_type',
+        field_schema: 'keyword'
+      });
+      logger.info('QDRANT', 'Created protocol collection indexes');
+    }
+
+    isProtocolCollectionHealthy = true;
+    return true;
+  } catch (err) {
+    logger.error('QDRANT', `Failed to ensure protocol collection: ${err.message}`);
+    isProtocolCollectionHealthy = false;
+    return false;
+  }
+}
+
+/**
+ * Check if protocol collection is available
+ */
+export function isProtocolCollectionAvailable() {
+  return config.qdrant.enabled && isProtocolCollectionHealthy;
+}
+
+/**
+ * Upsert protocol chunks
+ * @param {Array<{id: number, vector: number[], payload: object}>} points
+ */
+export async function upsertProtocolChunks(points) {
+  const qdrant = getClient();
+  if (!qdrant) {
+    throw new Error('Qdrant not available');
+  }
+
+  const startTime = Date.now();
+
+  try {
+    await qdrant.upsert(config.qdrant.protocolCollection, {
+      wait: true,
+      points: points.map(p => ({
+        id: p.id,
+        vector: p.vector,
+        payload: p.payload
+      }))
+    });
+
+    const elapsed = Date.now() - startTime;
+    logger.debug('QDRANT', `Upserted ${points.length} protocol chunks in ${elapsed}ms`);
+  } catch (err) {
+    logger.error('QDRANT', `Failed to upsert protocol chunks: ${err.message}`);
+    throw err;
+  }
+}
+
+/**
+ * Search for protocol chunks
+ * @param {number[]} vector - Query embedding
+ * @param {object} options - Search options
+ * @returns {Promise<Array<{id: number, score: number, payload: object}>>}
+ */
+export async function searchProtocolChunks(vector, options = {}) {
+  const qdrant = getClient();
+  if (!qdrant) {
+    throw new Error('Qdrant not available');
+  }
+
+  const {
+    limit = 10,
+    filter = null,
+    scoreThreshold = 0.0
+  } = options;
+
+  const startTime = Date.now();
+
+  try {
+    const results = await qdrant.search(config.qdrant.protocolCollection, {
+      vector,
+      limit,
+      filter,
+      score_threshold: scoreThreshold,
+      with_payload: true
+    });
+
+    const elapsed = Date.now() - startTime;
+    logger.debug('QDRANT', `Protocol search returned ${results.length} results in ${elapsed}ms`);
+
+    return results.map(r => ({
+      id: r.id,
+      score: r.score,
+      payload: r.payload
+    }));
+  } catch (err) {
+    logger.error('QDRANT', `Protocol search failed: ${err.message}`);
+    throw err;
+  }
+}
+
+/**
+ * Build a Qdrant filter for protocol chunk search
+ * @param {object} params - Search parameters
+ * @returns {object|null} - Qdrant filter or null
+ */
+export function buildProtocolFilter(params) {
+  const conditions = [];
+
+  if (params.speaker) {
+    conditions.push({
+      key: 'speaker',
+      match: { value: params.speaker }
+    });
+  }
+
+  if (params.speakerParty) {
+    conditions.push({
+      key: 'speaker_party',
+      match: { value: params.speakerParty }
+    });
+  }
+
+  if (params.speakerState) {
+    conditions.push({
+      key: 'speaker_state',
+      match: { value: params.speakerState }
+    });
+  }
+
+  if (params.top) {
+    conditions.push({
+      key: 'top',
+      match: { value: params.top }
+    });
+  }
+
+  if (params.wahlperiode) {
+    conditions.push({
+      key: 'wahlperiode',
+      match: { value: params.wahlperiode }
+    });
+  }
+
+  if (params.herausgeber) {
+    conditions.push({
+      key: 'herausgeber',
+      match: { value: params.herausgeber }
+    });
+  }
+
+  if (params.chunkType) {
+    conditions.push({
+      key: 'chunk_type',
+      match: { value: params.chunkType }
+    });
+  }
+
+  if (params.protokollId) {
+    conditions.push({
+      key: 'protokoll_id',
+      match: { value: params.protokollId }
+    });
+  }
+
+  if (params.dateFrom || params.dateTo) {
+    const dateCondition = { key: 'datum' };
+    if (params.dateFrom && params.dateTo) {
+      dateCondition.range = { gte: params.dateFrom, lte: params.dateTo };
+    } else if (params.dateFrom) {
+      dateCondition.range = { gte: params.dateFrom };
+    } else {
+      dateCondition.range = { lte: params.dateTo };
+    }
+    conditions.push(dateCondition);
+  }
+
+  if (conditions.length === 0) {
+    return null;
+  }
+
+  return { must: conditions };
+}
+
+/**
+ * Get protocol collection statistics
+ */
+export async function getProtocolCollectionInfo() {
+  const qdrant = getClient();
+  if (!qdrant) {
+    return null;
+  }
+
+  try {
+    const info = await qdrant.getCollection(config.qdrant.protocolCollection);
+    return {
+      pointsCount: info.points_count,
+      vectorsCount: info.vectors_count,
+      status: info.status,
+      optimizerStatus: info.optimizer_status
+    };
+  } catch (err) {
+    logger.warn('QDRANT', `Failed to get protocol collection info: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Check if protocol chunks exist for a given protokoll_id
+ * @param {number} protokollId
+ * @returns {Promise<boolean>}
+ */
+export async function protocolChunksExist(protokollId) {
+  const qdrant = getClient();
+  if (!qdrant) return false;
+
+  try {
+    const results = await qdrant.scroll(config.qdrant.protocolCollection, {
+      filter: {
+        must: [{ key: 'protokoll_id', match: { value: protokollId } }]
+      },
+      limit: 1,
+      with_payload: false,
+      with_vector: false
+    });
+    return results.points && results.points.length > 0;
+  } catch (err) {
+    return false;
+  }
+}
