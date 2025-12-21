@@ -204,6 +204,7 @@ export async function searchDrucksachen(params = {}, options = {}) {
   if (params.datum_start) apiParams['f.datum.start'] = params.datum_start;
   if (params.datum_end) apiParams['f.datum.end'] = params.datum_end;
   if (params.urheber) apiParams['f.urheber'] = params.urheber;
+  if (params.aktualisiert_start) apiParams['f.aktualisiert.start'] = params.aktualisiert_start;
   if (params.cursor) apiParams['cursor'] = params.cursor;
 
   apiParams['rows'] = Math.min(params.limit || config.dipApi.defaultLimit, config.dipApi.maxLimit);
@@ -312,6 +313,7 @@ export async function searchVorgaenge(params = {}, options = {}) {
   if (params.datum_start) apiParams['f.datum.start'] = params.datum_start;
   if (params.datum_end) apiParams['f.datum.end'] = params.datum_end;
   if (params.initiative) apiParams['f.initiative'] = params.initiative;
+  if (params.aktualisiert_start) apiParams['f.aktualisiert.start'] = params.aktualisiert_start;
   if (params.cursor) apiParams['cursor'] = params.cursor;
 
   apiParams['rows'] = Math.min(params.limit || config.dipApi.defaultLimit, config.dipApi.maxLimit);
@@ -390,6 +392,7 @@ export async function searchAktivitaeten(params = {}, options = {}) {
   if (params.person_id) apiParams['f.person'] = params.person_id;
   if (params.datum_start) apiParams['f.datum.start'] = params.datum_start;
   if (params.datum_end) apiParams['f.datum.end'] = params.datum_end;
+  if (params.aktualisiert_start) apiParams['f.aktualisiert.start'] = params.aktualisiert_start;
   if (params.cursor) apiParams['cursor'] = params.cursor;
 
   apiParams['rows'] = Math.min(params.limit || config.dipApi.defaultLimit, config.dipApi.maxLimit);

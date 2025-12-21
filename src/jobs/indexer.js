@@ -17,12 +17,14 @@ import * as logger from '../utils/logger.js';
 let indexerInterval = null;
 let isRunning = false;
 let lastIndexTime = null;
+let lastSuccessfulIndexTime = null; // For incremental updates
 let stats = {
   totalIndexed: 0,
   lastRunDuration: 0,
   lastRunDocuments: 0,
   lastRunSkipped: 0,
-  errors: 0
+  errors: 0,
+  mode: 'full' // 'full' or 'incremental'
 };
 
 /**
@@ -123,9 +125,9 @@ function sleep(ms) {
 
 /**
  * Index documents of a specific type
- * Note: No pipelining to avoid DIP API rate limits
+ * Supports incremental mode using f.aktualisiert.start parameter
  */
-async function indexDocumentType(docType, searchFn, wahlperiode) {
+async function indexDocumentType(docType, searchFn, wahlperiode, updatedSince = null) {
   const BATCH_SIZE = 64;
   const API_DELAY_MS = 500; // Delay between API calls to avoid rate limits
   let cursor = null;
@@ -133,12 +135,19 @@ async function indexDocumentType(docType, searchFn, wahlperiode) {
   let skipped = 0;
   let hasMore = true;
 
-  logger.info('INDEXER', `Indexing ${docType} for WP${wahlperiode}`);
+  const mode = updatedSince ? 'incremental' : 'full';
+  logger.info('INDEXER', `Indexing ${docType} for WP${wahlperiode} (${mode})`,
+    updatedSince ? { since: updatedSince } : {});
 
   while (hasMore) {
     try {
-      // Fetch page with delay to avoid rate limits
-      const currentResult = await searchFn({ wahlperiode, limit: 100, cursor }, { useCache: false });
+      // Build query params - use aktualisiert filter for incremental mode
+      const queryParams = { wahlperiode, limit: 100, cursor };
+      if (updatedSince) {
+        queryParams.aktualisiert_start = updatedSince;
+      }
+
+      const currentResult = await searchFn(queryParams, { useCache: false });
 
       if (!currentResult.documents || currentResult.documents.length === 0) {
         hasMore = false;
@@ -183,7 +192,8 @@ async function indexDocumentType(docType, searchFn, wahlperiode) {
 }
 
 /**
- * Run a full indexing pass
+ * Run an indexing pass (full or incremental)
+ * First run is full, subsequent runs use f.aktualisiert.start for incremental updates
  */
 async function runIndexingPass() {
   if (isRunning) {
@@ -210,8 +220,21 @@ async function runIndexingPass() {
   let totalIndexed = 0;
   let totalSkipped = 0;
 
-  logger.info('INDEXER', 'Starting indexing pass', {
-    wahlperioden: config.indexer.wahlperioden
+  // Use incremental mode if we have a previous successful run
+  // DIP API has 15 min delay, so subtract 20 min for safety overlap
+  let updatedSince = null;
+  if (lastSuccessfulIndexTime) {
+    const overlapMs = 20 * 60 * 1000; // 20 minutes overlap
+    const sinceDate = new Date(lastSuccessfulIndexTime.getTime() - overlapMs);
+    updatedSince = sinceDate.toISOString();
+    stats.mode = 'incremental';
+  } else {
+    stats.mode = 'full';
+  }
+
+  logger.info('INDEXER', `Starting ${stats.mode} indexing pass`, {
+    wahlperioden: config.indexer.wahlperioden,
+    ...(updatedSince && { since: updatedSince })
   });
 
   try {
@@ -222,7 +245,7 @@ async function runIndexingPass() {
         ['vorgang', api.searchVorgaenge],
         ['aktivitaet', api.searchAktivitaeten]
       ]) {
-        const result = await indexDocumentType(docType, searchFn, wp);
+        const result = await indexDocumentType(docType, searchFn, wp, updatedSince);
         totalIndexed += result.indexed;
         totalSkipped += result.skipped;
       }
@@ -235,8 +258,9 @@ async function runIndexingPass() {
     stats.lastRunDocuments = totalIndexed;
     stats.lastRunSkipped = totalSkipped;
     lastIndexTime = new Date();
+    lastSuccessfulIndexTime = new Date(); // Mark successful run for incremental mode
 
-    logger.info('INDEXER', `Indexing pass complete`, {
+    logger.info('INDEXER', `Indexing pass complete (${stats.mode})`, {
       newDocuments: totalIndexed,
       skipped: totalSkipped,
       durationMs: duration,
@@ -302,7 +326,9 @@ export function getStats() {
   return {
     enabled: config.indexer.enabled,
     running: isRunning,
+    mode: stats.mode,
     lastIndexTime: lastIndexTime?.toISOString() || null,
+    lastSuccessfulIndexTime: lastSuccessfulIndexTime?.toISOString() || null,
     totalIndexed: stats.totalIndexed,
     lastRunDuration: stats.lastRunDuration,
     lastRunDocuments: stats.lastRunDocuments,
