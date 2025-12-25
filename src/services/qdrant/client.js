@@ -15,7 +15,11 @@ let client = null;
  */
 export function getClient() {
   if (!client && config.qdrant.enabled) {
-    client = new QdrantClient({ url: config.qdrant.url });
+    const options = { url: config.qdrant.url };
+    if (config.qdrant.apiKey) {
+      options.apiKey = config.qdrant.apiKey;
+    }
+    client = new QdrantClient(options);
     logger.info('QDRANT', `Client initialized for ${config.qdrant.url}`);
   }
   return client;

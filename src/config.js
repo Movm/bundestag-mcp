@@ -35,6 +35,7 @@ export const config = {
   qdrant: {
     enabled: process.env.QDRANT_ENABLED === 'true',
     url: process.env.QDRANT_URL || 'http://localhost:6333',
+    apiKey: process.env.QDRANT_API_KEY || null,
     collection: 'bundestag-docs',
     protocolCollection: 'bundestag-protocol-chunks',
     documentCollection: 'bundestag-document-chunks',

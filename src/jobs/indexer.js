@@ -725,18 +725,18 @@ export async function runProtocolIndexing() {
   let totalChunks = 0;
 
   try {
-    // Only index WP 20 for now (as specified by user)
-    const wahlperiode = 20;
+    // Index all configured wahlperioden
+    for (const wahlperiode of config.indexer.wahlperioden) {
+      // Index Bundestag protocols
+      const btResult = await indexProtocolsForWahlperiode(wahlperiode, 'BT');
+      totalProtocols += btResult.protocols;
+      totalChunks += btResult.chunks;
 
-    // Index Bundestag protocols
-    const btResult = await indexProtocolsForWahlperiode(wahlperiode, 'BT');
-    totalProtocols += btResult.protocols;
-    totalChunks += btResult.chunks;
-
-    // Optionally index Bundesrat protocols
-    // const brResult = await indexProtocolsForWahlperiode(wahlperiode, 'BR');
-    // totalProtocols += brResult.protocols;
-    // totalChunks += brResult.chunks;
+      // Optionally index Bundesrat protocols
+      // const brResult = await indexProtocolsForWahlperiode(wahlperiode, 'BR');
+      // totalProtocols += brResult.protocols;
+      // totalChunks += brResult.chunks;
+    }
 
     const duration = Date.now() - startTime;
 
@@ -1059,12 +1059,12 @@ export async function runDocumentChunkIndexing() {
   let totalChunks = 0;
 
   try {
-    // Only index WP 20 for now
-    const wahlperiode = 20;
-
-    const result = await indexDrucksachenChunksForWahlperiode(wahlperiode);
-    totalDocuments += result.documents;
-    totalChunks += result.chunks;
+    // Index all configured wahlperioden
+    for (const wahlperiode of config.indexer.wahlperioden) {
+      const result = await indexDrucksachenChunksForWahlperiode(wahlperiode);
+      totalDocuments += result.documents;
+      totalChunks += result.chunks;
+    }
 
     const duration = Date.now() - startTime;
 

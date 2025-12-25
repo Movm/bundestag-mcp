@@ -460,6 +460,7 @@ Add to your `.env` file:
 # Semantic Search (Qdrant + Mistral)
 QDRANT_ENABLED=true
 QDRANT_URL=http://qdrant:6333
+QDRANT_API_KEY=your-qdrant-api-key      # Optional: API key for Qdrant authentication
 MISTRAL_API_KEY=your-mistral-api-key
 
 # Background Indexer
@@ -467,6 +468,8 @@ INDEXER_ENABLED=true
 INDEXER_INTERVAL_MINUTES=15
 INDEXER_WAHLPERIODEN=19,20
 ```
+
+> **Tip**: Generate a secure API key with `openssl rand -hex 32`
 
 ### Docker Compose with Qdrant
 
@@ -477,6 +480,7 @@ services:
     environment:
       - QDRANT_ENABLED=true
       - QDRANT_URL=http://qdrant:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
       - INDEXER_ENABLED=true
     depends_on:
@@ -484,8 +488,12 @@ services:
 
   qdrant:
     image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}
 
 volumes:
   qdrant_data:
