@@ -315,12 +315,7 @@ export async function start() {
     return;
   }
 
-  if (!config.mistral.apiKey) {
-    logger.warn('INDEXER', 'Cannot start indexer: MISTRAL_API_KEY not set');
-    return;
-  }
-
-  // Initialize persistent state
+  // Initialize persistent state (needed for bootstrap even without embedding)
   indexerState.init();
 
   logger.info('INDEXER', `Starting background indexer`, {
@@ -334,13 +329,20 @@ export async function start() {
     return;
   }
 
-  // Ensure protocol and document collections exist too
+  // Ensure protocol and document collections exist
   // (Sets isHealthy flags so search tools report availability)
+  // This runs even without MISTRAL_API_KEY so existing indexes are searchable
   await qdrant.ensureProtocolCollection();
   await qdrant.ensureDocumentCollection();
 
   // Auto-bootstrap state from Qdrant if empty (for existing deployments)
   await indexerState.bootstrapFromQdrant(qdrant.getClient());
+
+  // MISTRAL_API_KEY only required for embedding new documents
+  if (!config.mistral.apiKey) {
+    logger.warn('INDEXER', 'MISTRAL_API_KEY not set - existing indexes searchable but no new indexing');
+    return;
+  }
 
   // Start first indexing pass
   runIndexingPass();
