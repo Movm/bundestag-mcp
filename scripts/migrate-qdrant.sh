@@ -11,7 +11,7 @@
 #
 # Environment variables:
 #   LOCAL_QDRANT_URL   - Local Qdrant URL (default: http://localhost:6333)
-#   HOSTED_QDRANT_URL  - Hosted Qdrant URL (default: http://bundestagapi.moritz-waechter.de:16333)
+#   HOSTED_QDRANT_URL  - Hosted Qdrant URL (default: http://bundestagapi.moritz-waechter.de:6333)
 #   QDRANT_API_KEY     - API key for hosted Qdrant (required)
 #
 
@@ -19,7 +19,7 @@ set -e
 
 LOCAL_QDRANT_URL="${LOCAL_QDRANT_URL:-http://localhost:6333}"
 HOSTED_QDRANT_URL="${HOSTED_QDRANT_URL:-http://bundestagapi.moritz-waechter.de:16333}"
-QDRANT_API_KEY="${QDRANT_API_KEY:-}"
+QDRANT_API_KEY="${QDRANT_API_KEY:-YudVuRv1hENeiAn0cAb0CDebhT4HzrIL-0O3iYKFONA}"
 
 COLLECTIONS=("bundestag-docs" "bundestag-protocol-chunks" "bundestag-document-chunks")
 SNAPSHOT_DIR="./snapshots"
