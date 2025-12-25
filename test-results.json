@@ -1,0 +1,490 @@
+{
+  "timestamp": "2025-12-25T16:45:43.633Z",
+  "tests": [
+    {
+      "name": "Friedrich Merz zu Klimaschutz (nur Reden)",
+      "query": "Klimaschutz Energiewende Umweltpolitik CO2",
+      "filters": {
+        "speaker": "Friedrich Merz",
+        "category": "rede"
+      },
+      "count": 10,
+      "speeches": [
+        {
+          "score": "0.802",
+          "datum": "2025-03-13",
+          "speech_type": "rede",
+          "text_preview": "Meine Damen und Herren von der Grünen-Bundestagsfraktion, das ist ein sehr konkretes Angebot auch an Sie, weil Sie ja völlig zu Recht in den Gesprächen der letzten Tage darauf hingewiesen haben, dass dieses Geld eben auch für den Klimaschutz zur Verfügung stehen muss. Lassen Sie mich das einmal zusa"
+        },
+        {
+          "score": "0.796",
+          "datum": "2024-09-11",
+          "speech_type": "rede",
+          "text_preview": "Ihre Wirtschaftspolitik ist nicht mehr marktwirtschaftlich orientiert, Ihre Wirtschaftspolitik ist eine Politik der beständigen Intervention in den Markt. Wir bewegen uns mehr und mehr in die Richtung einer Planwirtschaft. Und Herr Habeck ist genau der Repräsentant für diese Politik. Er erklärt uns "
+        },
+        {
+          "score": "0.795",
+          "datum": "2024-01-31",
+          "speech_type": "rede",
+          "text_preview": "Meine Damen und Herren, zu allen diesen strategischen Fragen, zu dieser strategischen Neuausrichtung Europas sollte das Format des Weimarer Dreiecks wiederbelebt werden, am besten mit einer sehr bald ausgesprochenen Einladung der deutschen Bundesregierung nach Weimar, um von dort aus den Weg hin zu "
+        },
+        {
+          "score": "0.793",
+          "datum": "2024-12-16",
+          "speech_type": "rede",
+          "text_preview": "Und wer das nicht will, von dem müssen wir annehmen, dass er aus eigener Kraft seinen Lebensunterhalt erwirtschaften kann. Er wird jedenfalls nicht mehr auf Kosten des Steuerzahlers seinen Lebensunterhalt bestreiten können. Wir werden - ich habe es bereits gesagt - in der Energiepolitik alle Möglich"
+        },
+        {
+          "score": "0.793",
+          "datum": "2024-12-16",
+          "speech_type": "rede",
+          "text_preview": "Mittlerweile sind die wegen Deutschland schwer verärgert, weil nicht nur die Energiepreise in Deutschland in die Höhe gehen, sondern in fast allen anderen Ländern um uns herum die Energiepreise steigen, weil die Nachfrage so groß geworden ist, weil Sie in Deutschland praktisch alles stillgelegt habe"
+        },
+        {
+          "score": "0.788",
+          "datum": "2023-11-28",
+          "speech_type": "rede",
+          "text_preview": "Damit die nachfolgenden Redner der Koalition hier sofort die Antwort von mir bekommen: Wir werden uns wieder an unsere staatspolitische Verantwortung erinnern, die wir in diesem Lande tragen. Ja, das werden wir tun. Meine Damen und Herren, ich will Ihnen die Antwort geben, was wir als staatspolitisc"
+        },
+        {
+          "score": "0.787",
+          "datum": "2025-03-13",
+          "speech_type": "rede",
+          "text_preview": "Ich nenne nur diese wenigen Beispiele - ich könnte weitere hinzufügen -, meine Damen und Herren, damit Ihnen klar ist: Wir wollen hier nicht Geld ausgeben für nichts und wieder nichts, sondern wir wollen dies in eine umfassende Reformagenda für unser Land eingebettet sehen, und dazu stehen wir ohne "
+        },
+        {
+          "score": "0.786",
+          "datum": "2024-12-16",
+          "speech_type": "rede",
+          "text_preview": "Aber wenn die sozialdemokratische Bundestagsfraktion weiter unbegrenzt Ausgaben erhöhen will, insbesondere in die sozialen Sicherungssysteme und in das sogenannte Bürgergeld - jaja, ich komme darauf zu sprechen -, wenn die FDP sich richtigerweise weigert, die Steuern zu erhöhen und die Schuldenbrems"
+        },
+        {
+          "score": "0.776",
+          "datum": "2024-12-16",
+          "speech_type": "rede",
+          "text_preview": "Wir sind es nicht, Herr Habeck; um es mal ganz klar zu sagen. Diese Wirtschaftspolitik machen Sie mit uns in jedem Falle nicht; um es hier von Anfang an sehr klar zu sagen! Damit sind - Herr Bundeskanzler, da haben Sie natürlich recht - die Unterschiede deutlich. Wir setzen diesem Stillstand und die"
+        },
+        {
+          "score": "0.775",
+          "datum": "2024-11-13",
+          "speech_type": "rede",
+          "text_preview": "Liebe Kolleginnen und Kollegen, wie dramatisch die Lage ist, das können wir doch heute im Laufe des Tages den Nachrichten und dem Herbstgutachten des Sachverständigenrates entnehmen, der die Wachstumsraten für Deutschland noch einmal nach unten korrigiert. Wir lesen in den Zeitungen, dass die Indust"
+        }
+      ]
+    },
+    {
+      "name": "Regierungsmitglieder zu Migration (Befragungen)",
+      "query": "Migration Asyl Flüchtlinge Abschiebung Grenzschutz",
+      "filters": {
+        "is_government": true,
+        "speech_type": "befragung"
+      },
+      "count": 10,
+      "speeches": [
+        {
+          "score": "0.818",
+          "speaker": "Olaf Scholz",
+          "party": "SPD",
+          "datum": "2025-01-29",
+          "text_preview": "Frau Präsidentin! Liebe Kolleginnen und Kollegen! Nach dem, was wir heute von Roman Schwarzman gehört haben, fällt es nicht leicht, zur Tagesordnung überzugehen. Wir verneigen uns vor ihm und vor allen Opfern des Holocaust. Roman Schwarzmans Worte hallen nach: „Menschlichkeit und Gerechtigkeit dürfe"
+        },
+        {
+          "score": "0.817",
+          "speaker": "Nancy Faeser",
+          "party": "SPD",
+          "datum": "2024-10-09",
+          "text_preview": "Herr Curio, Sie wissen selbst auch, dass es europäisches Recht gibt und uns die Genfer Flüchtlingskonvention dazu auffordert, den Anspruch auf Asyl zu prüfen, wenn Menschen zu uns kommen und „Asyl“ an der Grenze sagen. Ansonsten habe ich Ihnen schon gesagt, dass wir zurückweisen. Mit Dublin haben wi"
+        },
+        {
+          "score": "0.815",
+          "speaker": "Nancy Faeser",
+          "party": "SPD",
+          "datum": "2024-01-18",
+          "text_preview": "Sehr geehrter Herr Präsident! Sehr verehrte Abgeordnete! Sehr geehrte Gäste! Deutschland ist ein solidarisches Land. Wer vor Krieg und Terror zu uns flieht, kann auf unseren Schutz und unsere Unterstützung setzen. Und wir gewähren Geflüchteten weit mehr als nur Schutz: Wir helfen ihnen, in Deutschla"
+        },
+        {
+          "score": "0.811",
+          "speaker": "Nancy Faeser",
+          "party": "SPD",
+          "datum": "2023-09-20",
+          "text_preview": "Herr Abgeordneter Hess, ich weiß, dass Sie damit draußen Politik machen und Ängste schüren. Aber in der Sache ist das falsch. Ich sage es noch einmal: Es geht darum, dass Sie sowohl bei der stationären Grenzkontrolle als auch bei Schleierfahndung Menschen vor sich haben, die zu uns kommen und bei un"
+        },
+        {
+          "score": "0.810",
+          "speaker": "Nancy Faeser",
+          "party": "SPD",
+          "datum": "2023-09-20",
+          "text_preview": "Ganz herzlichen Dank, Frau Präsidentin. - Meine sehr geehrten Damen und Herren Abgeordnete! Sehr geehrte Gäste! Mit gutem Grund hat sich die Regierungskoalition einen Neustart in der Migrationspolitik vorgenommen. Zum einen, weil wir in besonders herausfordernden Zeiten leben. Weltweit nehmen Flucht"
+        },
+        {
+          "score": "0.808",
+          "speaker": "Nancy Faeser",
+          "party": "SPD",
+          "datum": "2025-01-31",
+          "text_preview": "So handelt die demokratische Mitte dieses Hauses, aber nicht, durch ein einseitiges Vorgehen hier einen erneuten Tabubruch zu begehen, meine Damen und Herren. Ihr Geschrei soll nur übertönen, dass wir dafür Schritte gewagt haben, zu denen Ihnen übrigens die Kraft gefehlt hat. Wir haben Kontrollen an"
+        },
+        {
+          "score": "0.808",
+          "speaker": "Olaf Scholz",
+          "party": "SPD",
+          "datum": "2025-01-29",
+          "text_preview": "Und ich bin die Nebelkerzen leid, die nach solchen Straftaten geworfen werden, um eigene Missstände zu kaschieren. Der Bund kann den gesetzlichen Rahmen setzen für eine bessere Steuerung von Migration, für ein schärferes Asylrecht und für mehr Abschiebungen. Das haben wir getan, und das werden wir w"
+        },
+        {
+          "score": "0.804",
+          "speaker": "Nancy Faeser",
+          "party": "SPD",
+          "datum": "2024-10-09",
+          "text_preview": "Herr Abgeordneter, zunächst gibt es zwei Gründe, dass ich diese Grenzkontrollen angeordnet haben. Der eine ist der Schutz unserer Sicherheitslage in Deutschland vor islamistischem Terrorismus. Wir haben das ja nach Solingen angeordnet. Der zweite sind Zurückweisungen derjenigen, die unberechtigt ein"
+        },
+        {
+          "score": "0.803",
+          "speaker": "Nancy Faeser",
+          "party": "SPD",
+          "datum": "2023-09-20",
+          "text_preview": "Herr Abgeordneter Throm, ich beantworte die Frage selbstverständlich gerne, weil es entscheidende Unterschiede in der Frage gibt, womit man eigentlich erfolgreich ist. Wir müssen uns, glaube ich, rechtlich nicht darüber austauschen - das wissen Sie auch -: Wenn jemand an eine stationäre Grenzkontrol"
+        },
+        {
+          "score": "0.803",
+          "speaker": "Nancy Faeser",
+          "party": "SPD",
+          "datum": "2024-10-09",
+          "text_preview": "Herr Brandner, ich habe vorhin schon versucht, Ihrer Fraktion zu erklären, dass wir der europäischen Gesetzgebung und der Genfer Flüchtlingskonvention unterliegen. Das sind Maßstäbe, die einklagbar sind. § 18 Asylgesetz gilt natürlich auch. Deswegen sind wir in der Lage, Zurückweisungen auszuspreche"
+        }
+      ]
+    },
+    {
+      "name": "Parteienvergleich: Wirtschaftsreden GRÜNE vs AfD",
+      "query": "Wirtschaft Wachstum Industrie Arbeitsplätze Unternehmen",
+      "gruene": [
+        {
+          "score": "0.839",
+          "speaker": "Katharina Beck",
+          "datum": "2024-12-06",
+          "text_preview": "Frau Präsidentin! Liebe Kolleginnen und Kollegen! Liebe Bürgerinnen und Bürger! Tatsächlich ist die Lage der Wirtschaft in Deutschland nicht besonders rosig. Ich finde es sehr gut, dass wir im Bundestag so viel über Wirtschaftsthemen debattieren. Das"
+        },
+        {
+          "score": "0.837",
+          "speaker": "Dr. Sebastian Schäfer",
+          "datum": "2024-09-10",
+          "text_preview": "Sehr geehrter Herr Präsident! Sehr geehrte Kolleginnen und Kollegen! Mario Draghi hat gestern seinen Bericht zur Wettbewerbsfähigkeit in Europa vorgestellt; Minister Lindner hat es angesprochen. Draghi spricht von zusätzlichen Mindestinvestitionen vo"
+        },
+        {
+          "score": "0.837",
+          "speaker": "Katharina Beck",
+          "datum": "2024-02-22",
+          "text_preview": "Sehr geehrte Frau Präsidentin! Liebe Kolleginnen und Kollegen! Liebe Bürgerinnen und Bürger und Gäste auf den Tribünen! Eben, als mein Kollege Andreas Audretsch sehr richtige Dinge über die hanebüchene Blockade der CDU/CSU beim Wachstumschancengesetz"
+        },
+        {
+          "score": "0.837",
+          "speaker": "Dr. Robert Habeck",
+          "datum": "2024-02-22",
+          "text_preview": "Potenzialwachstum heißt ja das, was die Volkswirtschaft leisten könnte, wenn alle anderen Probleme gelöst wären, also genug Geld, genug Aufträge und eine schlanke Bürokratie da wären. Dann muss die Arbeit ja immer noch umgesetzt werden. Dieses Potenz"
+        },
+        {
+          "score": "0.837",
+          "speaker": "Dr. Robert Habeck",
+          "datum": "2025-01-30",
+          "text_preview": "Dort wurde die ökonomische Debatte so aufgegleist, dass man sagte: Entweder die Angebotsseite muss besser werden, oder die Nachfrageseite muss besser werden. Das ist in Spurenelementen noch immer in der heutigen Debatte zu finden, aber es hilft nicht"
+        }
+      ],
+      "afd": [
+        {
+          "score": "0.829",
+          "speaker": "Leif-Erik Holm",
+          "datum": "2024-05-17",
+          "text_preview": "Liebe Bürger! Frau Präsidentin! Meine Damen und Herren! Die lange Phase der Stagnation ist vorüber, sagt die EU-Kommission. Gute Nachricht für die EU, aber leider nicht für Deutschland. Die Prognosen für unseren Standort bleiben düster wie die Nacht."
+        },
+        {
+          "score": "0.827",
+          "speaker": "Enrico Komning",
+          "datum": "2023-11-30",
+          "text_preview": "Sehr geehrte Frau Präsidentin! Meine Damen und Herren Kollegen! Sehr geehrter Herr Staatsminister! Sehr geehrter Herr Staatssekretär! Der Industriestandort Ostdeutschland ist von der Habeck’schen Abwirtschaftspolitik in besonderem Maße betroffen. Die"
+        },
+        {
+          "score": "0.825",
+          "speaker": "Klaus Stöber",
+          "datum": "2023-10-13",
+          "text_preview": "Sehr geehrte Frau Präsidentin! Sehr geehrte Kollegen! Liebe Gäste auf der Tribüne! Die Bundesregierung hat mit dem Wachstumschancengesetz einen Entwurf vorgelegt, der eine Vielzahl von Einzelmaßnahmen enthält, die aus unserer Sicht durchaus zu begrüß"
+        },
+        {
+          "score": "0.824",
+          "speaker": "Leif-Erik Holm",
+          "datum": "2025-01-30",
+          "text_preview": "Liebe Bürger! Frau Präsidentin! Meine Damen und Herren! Wir reden heute über drei Jahre grüne Wirtschaftspolitik, drei lange quälende Jahre. Der neue Jahreswirtschaftsbericht gießt Ihre Bilanz, Herr Habeck, in Zahlen. Erneut mussten Sie die Wirtschaf"
+        },
+        {
+          "score": "0.824",
+          "speaker": "Bernd Schattner",
+          "datum": "2024-05-16",
+          "text_preview": "Frau Präsidentin! Meine Damen und Herren! Die Mitgliedstaaten der Europäischen Union sind aufgefordert, im April jeden Jahres der EU-Kommission ein Nationales Reformprogramm vorzulegen. Oder anders ausgedrückt: Die Bundesregierung erstattet Brüssel B"
+        }
+      ]
+    },
+    {
+      "name": "Redner mit Dr.-Titel zu Gesundheit",
+      "query": "Gesundheit Krankenhaus Pflege Medizin Krankenkasse",
+      "total_results": 15,
+      "with_doctorate": 6,
+      "speakers": [
+        {
+          "score": "0.820",
+          "full_name": "Dr Armin Grau",
+          "party": "GRÜNE",
+          "datum": "2024-06-27",
+          "text_preview": "Sehr geehrte Frau Präsidentin! Liebe Kolleginnen und Kollegen! Liebe Patientinnen und Patienten! Liebe Beschäftigte in den Krankenhäusern! Das Gesetz, das wir heute einbringen, machen wir für Sie alle. Wir machen es, um die stationäre Versorgung und "
+        },
+        {
+          "score": "0.819",
+          "full_name": "Dr Christina Baum",
+          "party": "AfD",
+          "datum": "2024-10-17",
+          "text_preview": "Frau Präsidentin! Meine Damen und Herren! Das deutsche Gesundheitswesen galt in der Vergangenheit als eines der besten der Welt, bevor ein Strukturwandel in Gang kam, der am eindrücklichsten mit dem Begriffswechsel von der Gesundheitsversorgung zur G"
+        },
+        {
+          "score": "0.819",
+          "full_name": "Dr Armin Grau",
+          "party": "GRÜNE",
+          "datum": "2024-06-06",
+          "text_preview": "Sehr geehrte Frau Präsidentin! Liebe Kolleginnen und Kollegen! Gut, dass wir die Gelegenheit haben, über die Gesundheitsversorgung zu reden. Es ist richtig: Die finanzielle Lage vieler Krankenhäuser ist kritisch. Und wir haben ein Fachkräfteproblem. "
+        },
+        {
+          "score": "0.817",
+          "full_name": "Dr Andrew Ullmann",
+          "party": "FDP",
+          "datum": "2024-06-06",
+          "text_preview": "Sehr geehrte Frau Präsidentin! Meine Damen und Herren! Zur späten Stunde müssen wir uns mit zwei Anträgen der gespaltenen Linken auseinandersetzen. Die Gruppe Die Linke adressiert verschiedene Punkte im Gesundheitswesen auf kleinteilige Weise - ein P"
+        },
+        {
+          "score": "0.813",
+          "full_name": "Dr Christos Pantazis",
+          "party": "SPD",
+          "datum": "2024-10-17",
+          "text_preview": "Sehr geehrte Frau Präsidentin! Verehrte Kolleginnen und Kollegen! Vorneweg: Herr Laumann, den Pfad der gemeinsamen Arbeit haben Sie verlassen durch die Blockade des Krankenhaustransparenzgesetzes in der Bundesratssitzung im November, nicht wir. Durch"
+        },
+        {
+          "score": "0.811",
+          "full_name": "Dr Armin Grau",
+          "party": "GRÜNE",
+          "datum": "2024-10-17",
+          "text_preview": "Frau Präsidentin! Sehr geehrte Kolleginnen und Kollegen! Liebe Patientinnen und Patienten! Liebe Beschäftigte in den Krankenhäusern! Eine gute gesundheitliche Versorgung ist für viele Menschen eines der wichtigsten Themen; das zeigt unter anderem der"
+        }
+      ]
+    },
+    {
+      "name": "Ukraine-Debatte nach Monat",
+      "query": "Ukraine Krieg Russland Waffen Unterstützung",
+      "speeches_by_month": {
+        "2023-11": [
+          {
+            "speaker": "Matthias Moosdorf",
+            "party": "AfD",
+            "score": "0.810"
+          },
+          {
+            "speaker": "Dr. Gregor Gysi",
+            "party": "DIE LINKE",
+            "score": "0.805"
+          },
+          {
+            "speaker": "Robin Wagener",
+            "party": "GRÜNE",
+            "score": "0.798"
+          },
+          {
+            "speaker": "Alexander Müller",
+            "party": "FDP",
+            "score": "0.795"
+          },
+          {
+            "speaker": "Jörg Nürnberger",
+            "party": "SPD",
+            "score": "0.794"
+          }
+        ],
+        "2024-12": [
+          {
+            "speaker": "Sevim Dağdelen",
+            "party": "BSW",
+            "score": "0.804"
+          },
+          {
+            "speaker": "Stefan Keuter",
+            "party": "AfD",
+            "score": "0.795"
+          },
+          {
+            "speaker": "Dr. Gregor Gysi",
+            "party": "DIE LINKE",
+            "score": "0.788"
+          }
+        ],
+        "2024-01": [
+          {
+            "speaker": "Robert Farle",
+            "party": "fraktionslos",
+            "score": "0.803"
+          },
+          {
+            "speaker": "Dr. Sebastian Schäfer",
+            "party": "GRÜNE",
+            "score": "0.795"
+          },
+          {
+            "speaker": "Adis Ahmetovic",
+            "party": "SPD",
+            "score": "0.792"
+          },
+          {
+            "speaker": "Dr. Joe Weingarten",
+            "party": "SPD",
+            "score": "0.790"
+          },
+          {
+            "speaker": "Rüdiger Lucassen",
+            "party": "AfD",
+            "score": "0.790"
+          },
+          {
+            "speaker": "Thomas Silberhorn",
+            "party": "CDU/CSU",
+            "score": "0.787"
+          }
+        ],
+        "2024-02": [
+          {
+            "speaker": "Gabriela Heinrich",
+            "party": "SPD",
+            "score": "0.796"
+          },
+          {
+            "speaker": "Wolfgang Hellmich",
+            "party": "SPD",
+            "score": "0.794"
+          },
+          {
+            "speaker": "Deborah Düring",
+            "party": "GRÜNE",
+            "score": "0.787"
+          }
+        ],
+        "2024-03": [
+          {
+            "speaker": "Dr. Johann David Wadephul",
+            "party": "CDU/CSU",
+            "score": "0.791"
+          }
+        ],
+        "2024-06": [
+          {
+            "speaker": "Thomas Hacker",
+            "party": "FDP",
+            "score": "0.790"
+          }
+        ],
+        "2023-12": [
+          {
+            "speaker": "Nadine Heselhaus",
+            "party": "SPD",
+            "score": "0.786"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Fragestunde zu Bürgergeld",
+      "query": "Bürgergeld Sozialleistungen Arbeit",
+      "filters": {
+        "speech_type": "fragestunde"
+      },
+      "count": 10,
+      "exchanges": [
+        {
+          "score": "0.834",
+          "speaker": "Kai Whittaker",
+          "party": "CDU/CSU",
+          "is_government": false,
+          "datum": "2024-03-13",
+          "text_preview": "Vielen Dank, Frau Präsidentin. - Frau Staatssekretärin, unsere Kritik am Bürgergeld ist, dass es sich mit einem Vollzeitjob mit Mindestlohn weniger lohnt zu arbeiten im Vergleich zum Bezug von Bürgerg"
+        },
+        {
+          "score": "0.832",
+          "speaker": "Hermann Gröhe",
+          "party": "CDU/CSU",
+          "is_government": false,
+          "datum": "2024-12-04",
+          "text_preview": "Herr Bundeskanzler, in Zeiten des Arbeitskräftemangels versagt das Bürgergeld bei der Vermittlung in Arbeit. Dabei müsste es gerade jetzt darum gehen, alles zu tun, arbeitsfähige Bürgergeldempfänger i"
+        },
+        {
+          "score": "0.820",
+          "speaker": "Beate Müller-Gemmeke",
+          "party": "GRÜNE",
+          "is_government": false,
+          "datum": "2024-05-15",
+          "text_preview": "Vielen Dank, Frau Präsidentin. - Herr Minister, in der aktuellen Debatte rund um das Bürgergeld geht es ja immer um Verschärfungen, um Sanktionen. Es geht ein Stück weit darum, dass suggeriert wird, d"
+        },
+        {
+          "score": "0.819",
+          "speaker": "Fabian Gramling",
+          "party": "CDU/CSU",
+          "is_government": false,
+          "datum": "2024-06-26",
+          "text_preview": "Herr Minister, das Bürgergeld läuft aus dem Ruder. Seit der Einführung des Bürgergeldes sind heute 200 000 Menschen mehr im Bürgergeldbezug als zu Beginn, im Januar 2023. Gleichzeitig gibt es aber übe"
+        },
+        {
+          "score": "0.809",
+          "speaker": "Stephan Stracke",
+          "party": "CDU/CSU",
+          "is_government": false,
+          "datum": "2024-03-13",
+          "text_preview": "Vielen Dank, Frau Präsidentin. - Sehr geehrte Frau Staatssekretärin, Enzo Weber hat am 20. Dezember 2023 auf LinkedIn eine Analyse zum Bürgergeld und zum Sanktionsmoratorium vorgelegt. Er hat insbeson"
+        },
+        {
+          "score": "0.808",
+          "speaker": "Hermann Gröhe",
+          "party": "CDU/CSU",
+          "is_government": false,
+          "datum": "2024-09-10",
+          "text_preview": "Deswegen sind es Luftbuchungen, wenn Sie glauben, beim Bürgergeld einsparen zu können. Natürlich kann man durch Vermittlung in Arbeit sparen, wenn man die Wirtschaft wieder in Schwung bringt; aber da "
+        },
+        {
+          "score": "0.807",
+          "speaker": "Stephanie Aeffner",
+          "party": "GRÜNE",
+          "is_government": false,
+          "datum": "2024-05-15",
+          "text_preview": "Sehr geehrter Herr Minister, wir haben ja gerade aus der Union gehört, dass sich heute dank der Einführung des Bürgergeldes Arbeiten angeblich nicht mehr lohnen würde. Können Sie, in Anbetracht der Ze"
+        },
+        {
+          "score": "0.806",
+          "speaker": "Matthias Hauer",
+          "party": "CDU/CSU",
+          "is_government": false,
+          "datum": "2024-02-21",
+          "text_preview": "Ja, Frau Präsidentin. - Herr Bundesminister, Sie hatten ja in Ihrem Eingangsstatement die nötige Mobilisierung in den Arbeitsmarkt angesprochen. Im letzten Jahr hatten Sie gesagt, es gebe - Zitat - „M"
+        },
+        {
+          "score": "0.802",
+          "speaker": "Dr. Ottilie Klein",
+          "party": "CDU/CSU",
+          "is_government": false,
+          "datum": "2024-03-13",
+          "text_preview": "Vielen Dank. - Sehr geehrte Frau Staatssekretärin, das Bürgergeld ist ja nur dann erfolgreich, wenn mehr Menschen in Arbeit gebracht werden. Wir stellen aber tatsächlich fest, dass die Arbeitslosigkei"
+        },
+        {
+          "score": "0.801",
+          "speaker": "Peter Boehringer",
+          "party": "AfD",
+          "is_government": false,
+          "datum": "2024-09-25",
+          "text_preview": "Danke, Frau Präsidentin. - Zurück zum Finanzressort. Herr Minister, nach glaubhaften Presseberichten in dieser Woche ging man im Arbeitsministerium davon aus, dass die Finanzierung des Bürgergeldes 10"
+        }
+      ]
+    }
+  ],
+  "collection_stats": {
+    "pointsCount": 16114,
+    "status": "green",
+    "optimizerStatus": "ok"
+  }
+}

@@ -14,14 +14,32 @@ services:
       - INDEXER_ENABLED=${INDEXER_ENABLED:-false}
       - INDEXER_INTERVAL_MINUTES=${INDEXER_INTERVAL_MINUTES:-15}
       - INDEXER_WAHLPERIODEN=${INDEXER_WAHLPERIODEN:-19,20}
+      - ANALYSIS_SERVICE_URL=http://analysis:8000
     depends_on:
       qdrant:
+        condition: service_healthy
+      analysis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       start_period: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Python NLP analysis service (spaCy-based)
+  analysis:
+    build:
+      context: ../bundestag-noun-analysis
+      dockerfile: Dockerfile.api
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s  # spaCy model takes ~30s to load
       retries: 3
     restart: unless-stopped
 

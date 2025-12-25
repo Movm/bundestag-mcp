@@ -11,10 +11,11 @@
 import { config } from '../config.js';
 import * as api from '../api/bundestag.js';
 import * as embedding from '../services/embeddingService.js';
-import * as qdrant from '../services/qdrantService.js';
+import * as qdrant from '../services/qdrant/index.js';
 import * as logger from '../utils/logger.js';
 import { parseProtokoll } from '../services/protokollParser.js';
 import { parseDrucksache } from '../services/drucksacheParser.js';
+import * as analysisService from '../services/analysisService.js';
 
 let indexerInterval = null;
 let isRunning = false;
@@ -395,7 +396,108 @@ function generateChunkPointId(protokollId, chunkIndex, chunkPart = 0) {
 }
 
 /**
+ * Split a long speech into smaller chunks for embedding
+ * @param {object} speech - Speech object
+ * @param {number} maxChars - Maximum characters per chunk
+ * @returns {Array} - Array of chunked speeches
+ */
+function splitLongSpeech(speech, maxChars = 4000) {
+  if (!speech.text || speech.text.length <= maxChars) {
+    return [speech];
+  }
+
+  const chunks = [];
+  const sentences = speech.text.split(/(?<=[.!?])\s+/);
+  let currentChunk = [];
+  let currentLength = 0;
+  let partIndex = 0;
+
+  for (const sentence of sentences) {
+    if (currentLength + sentence.length > maxChars && currentChunk.length > 0) {
+      chunks.push({
+        ...speech,
+        chunk_part: partIndex++,
+        text: currentChunk.join(' '),
+        text_length: currentChunk.join(' ').length
+      });
+      currentChunk = [];
+      currentLength = 0;
+    }
+    currentChunk.push(sentence);
+    currentLength += sentence.length + 1;
+  }
+
+  if (currentChunk.length > 0) {
+    chunks.push({
+      ...speech,
+      chunk_part: partIndex,
+      text: currentChunk.join(' '),
+      text_length: currentChunk.join(' ').length
+    });
+  }
+
+  return chunks;
+}
+
+/**
+ * Transform Python service speeches to indexer format
+ * @param {Array} speeches - Speeches from Python service
+ * @param {object} metadata - Protocol metadata
+ * @returns {object} - Parsed result compatible with indexer
+ */
+function transformPythonSpeeches(speeches, metadata) {
+  let chunkIndex = 0;
+  const transformedSpeeches = [];
+
+  for (const speech of speeches) {
+    // Skip very short speeches
+    if (!speech.text || speech.text.length < 50) {
+      continue;
+    }
+
+    const baseSpeech = {
+      chunk_index: chunkIndex,
+      chunk_type: speech.category === 'rede' ? 'speech' : 'contribution',
+      speech_type: speech.type,
+      category: speech.category,
+      speaker: speech.speaker,
+      speaker_party: speech.party,
+      speaker_state: null,
+      speaker_role: speech.is_government ? 'government' : null,
+      is_government: speech.is_government || false,
+      first_name: speech.first_name,
+      last_name: speech.last_name,
+      acad_title: speech.acad_title,
+      top: null,
+      top_title: null,
+      text: speech.text,
+      text_length: speech.text?.length || 0
+    };
+
+    // Split long speeches into chunks
+    const chunks = splitLongSpeech(baseSpeech, 4000);
+    for (const chunk of chunks) {
+      chunk.chunk_index = chunkIndex++;
+      transformedSpeeches.push(chunk);
+    }
+  }
+
+  return {
+    metadata: {
+      protokoll_id: metadata.id,
+      dokumentnummer: metadata.dokumentnummer,
+      wahlperiode: metadata.wahlperiode,
+      datum: metadata.datum,
+      herausgeber: metadata.herausgeber,
+      titel: metadata.titel
+    },
+    speeches: transformedSpeeches
+  };
+}
+
+/**
  * Process a single protocol: fetch text, parse, embed, upsert
+ * Uses Python analysis service for enhanced parsing with JS fallback
  */
 async function indexProtocol(protokoll) {
   const protokollId = protokoll.id;
@@ -421,22 +523,43 @@ async function indexProtocol(protokoll) {
     return { chunks: 0, skipped: false };
   }
 
-  // Parse into speeches
-  const parsed = parseProtokoll(textResult.text, {
+  // Try Python analysis service first (enhanced parsing)
+  let parsed;
+  const metadata = {
     id: protokollId,
     dokumentnummer: protokoll.dokumentnummer,
     wahlperiode: protokoll.wahlperiode,
     datum: protokoll.datum || protokoll.fundstelle?.datum,
     herausgeber: protokoll.herausgeber,
     titel: protokoll.titel
-  });
+  };
+
+  const usePythonService = await analysisService.isAvailable();
+
+  if (usePythonService) {
+    try {
+      const result = await analysisService.extractSpeeches(textResult.text);
+      if (result.speeches && result.speeches.length > 0) {
+        parsed = transformPythonSpeeches(result.speeches, metadata);
+        logger.debug('INDEXER', `Python service extracted ${result.speech_count} speeches from protocol ${protokollId}`);
+      }
+    } catch (err) {
+      logger.warn('INDEXER', `Python service failed for ${protokollId}, falling back to JS parser: ${err.message}`);
+    }
+  }
+
+  // Fallback to JS parser if Python service unavailable or failed
+  if (!parsed) {
+    parsed = parseProtokoll(textResult.text, metadata);
+    logger.debug('INDEXER', `JS parser extracted ${parsed.speeches.length} chunks from protocol ${protokollId}`);
+  }
 
   if (parsed.speeches.length === 0) {
     logger.warn('INDEXER', `No speeches found in protocol ${protokollId}`);
     return { chunks: 0, skipped: false };
   }
 
-  logger.debug('INDEXER', `Parsed ${parsed.speeches.length} chunks from protocol ${protokollId}`);
+  logger.debug('INDEXER', `Processing ${parsed.speeches.length} chunks from protocol ${protokollId}`);
 
   // Generate embeddings for all chunks
   const EMBED_BATCH_SIZE = 32;
@@ -486,7 +609,14 @@ async function indexProtocol(protokoll) {
           top: chunk.top,
           top_title: chunk.top_title,
           text: chunk.text,
-          text_length: chunk.text_length
+          text_length: chunk.text_length,
+          // Enhanced fields from Python parser
+          speech_type: chunk.speech_type || null,
+          category: chunk.category || null,
+          is_government: chunk.is_government || false,
+          first_name: chunk.first_name || null,
+          last_name: chunk.last_name || null,
+          acad_title: chunk.acad_title || null
         }
       });
     }
@@ -653,6 +783,32 @@ export async function triggerProtocolIndexing() {
 
   runProtocolIndexing();
   return { success: true, message: 'Protocol indexing started' };
+}
+
+/**
+ * Force full re-indexing of protocols with new schema
+ * WARNING: This deletes ALL existing protocol data!
+ */
+export async function triggerProtocolReindex() {
+  if (isRunning) {
+    return { success: false, message: 'Indexing already in progress' };
+  }
+
+  logger.info('INDEXER', 'Starting full protocol re-index (deleting existing data)');
+
+  // Recreate collection with fresh schema
+  const recreated = await qdrant.recreateProtocolCollection();
+  if (!recreated) {
+    return { success: false, message: 'Failed to recreate protocol collection' };
+  }
+
+  // Reset stats
+  protocolStats.totalProtocols = 0;
+  protocolStats.totalChunks = 0;
+
+  // Start indexing
+  runProtocolIndexing();
+  return { success: true, message: 'Protocol re-indexing started (collection cleared)' };
 }
 
 // ============================================================================

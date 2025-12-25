@@ -10,6 +10,11 @@ export const config = {
     publicUrl: process.env.PUBLIC_URL || null
   },
 
+  analysis: {
+    url: process.env.ANALYSIS_SERVICE_URL || 'http://localhost:8000',
+    timeout: 60000  // 60s for large protocol analysis
+  },
+
   dipApi: {
     baseUrl: 'https://search.dip.bundestag.de/api/v1',
     apiKey: process.env.DIP_API_KEY,

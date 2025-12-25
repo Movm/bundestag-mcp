@@ -30,6 +30,7 @@ You can use this directly in your MCP client configuration without running your 
 - [Development](#development)
 - [Architecture](#architecture)
 - [Semantic Search](#semantic-search)
+- [NLP Analysis Service](#nlp-analysis-service)
 - [License](#license)
 
 ## Features
@@ -37,11 +38,14 @@ You can use this directly in your MCP client configuration without running your 
 ### Core Capabilities
 - **Search Drucksachen** - Find bills, motions, inquiries, and other printed documents
 - **Search Plenarprotokolle** - Find plenary session transcripts
-- **Search Vorgänge** - Track legislative proceedings through parliament
+- **Search Vorgaenge** - Track legislative proceedings through parliament
 - **Search Personen** - Find MPs and their information
-- **Search Aktivitäten** - Find parliamentary activities (speeches, questions)
+- **Search Aktivitaeten** - Find parliamentary activities (speeches, questions)
 - **Full Text Retrieval** - Get complete document texts
 - **Semantic Search** - AI-powered search using Qdrant + Mistral embeddings
+- **Speech Search** - Find specific statements in debates with hybrid vector/keyword search
+- **Document Section Search** - Search within document sections (articles, questions, etc.)
+- **NLP Analysis** - Extract speeches, analyze tone, classify topics, and compare parties
 
 ### Production-Ready
 - **Graceful Shutdown** - Clean session termination on SIGTERM/SIGINT
@@ -56,8 +60,8 @@ You can use this directly in your MCP client configuration without running your 
 - **Structured Logging** - JSON logs with categories and levels
 
 ### MCP Protocol
-- **17 Tools** - Comprehensive search and retrieval operations
-- **3 Prompts** - Guided workflows for common tasks
+- **31 Tools** - Search, retrieval, semantic search, speech search, and NLP analysis
+- **4 Prompts** - Guided workflows for common tasks
 - **11 Resources** - Static and dynamic resource templates
 - **Dual Mode** - Supports stateful (Claude, Cursor) and stateless (ChatGPT) clients
 
@@ -147,6 +151,37 @@ The server will start at `http://localhost:3000`.
 | `bundestag_semantic_search_status` | Show semantic search system status |
 | `bundestag_trigger_indexing` | Manually trigger document indexing |
 
+### Speech Search Tools
+
+| Tool | Description |
+|------|-------------|
+| `bundestag_search_speeches` | Semantic/hybrid search through parliamentary speeches |
+| `bundestag_trigger_protocol_indexing` | Trigger protocol chunking and indexing |
+| `bundestag_reindex_protocols` | Force full re-indexing of all protocols |
+| `bundestag_protocol_search_status` | Show protocol search system status |
+
+### Document Section Search Tools
+
+| Tool | Description |
+|------|-------------|
+| `bundestag_search_document_sections` | Semantic search through document sections |
+| `bundestag_trigger_document_indexing` | Trigger document chunk indexing |
+| `bundestag_document_search_status` | Show document chunk search status |
+
+### NLP Analysis Tools
+
+These tools use a Python FastAPI service with spaCy's German language model for natural language processing.
+
+| Tool | Description |
+|------|-------------|
+| `bundestag_extract_speeches` | Parse protocol text into individual speeches with speaker, party, and type |
+| `bundestag_analyze_text` | Analyze German text for word frequencies (nouns, adjectives, verbs) |
+| `bundestag_analyze_tone` | Communication style analysis (aggression, collaboration, solution-focus) |
+| `bundestag_classify_topics` | Classify text by political topics (migration, climate, economy, etc.) |
+| `bundestag_analysis_health` | Check if the NLP analysis service is available |
+| `bundestag_speaker_profile` | Generate comprehensive profile for a speaker based on their speeches |
+| `bundestag_compare_parties` | Compare political parties based on their parliamentary speeches |
+
 ### Utility Tools
 
 | Tool | Description |
@@ -175,6 +210,7 @@ Guided workflows for common parliamentary research tasks:
 | `search-legislation` | Guided search for bills and legislation with step-by-step instructions |
 | `track-proceeding` | Track a parliamentary proceeding through its lifecycle |
 | `mp-activity-report` | Generate comprehensive activity report for an MP |
+| `analyze-debate` | Analyze a plenary debate - extract speeches, tone, and topics |
 
 ## MCP Resources
 
@@ -333,8 +369,18 @@ src/
 ├── config.js             # Environment configuration
 ├── api/
 │   └── bundestag.js      # DIP API client with retry logic
+├── jobs/
+│   └── indexer.js        # Background document/protocol indexer
+├── services/
+│   ├── analysisService.js    # HTTP client for Python NLP service
+│   ├── embeddingService.js   # Mistral embeddings
+│   ├── qdrantService.js      # Vector database operations
+│   ├── protokollParser.js    # Protocol speech extraction
+│   └── drucksacheParser.js   # Document section parsing
 ├── tools/
 │   ├── search.js         # 14 search/entity tools
+│   ├── analysis.js       # 7 NLP analysis tools
+│   ├── semanticSearch.js # 10 semantic search tools
 │   └── clientConfig.js   # Client configuration tool
 ├── prompts/
 │   └── index.js          # MCP Prompts
@@ -383,11 +429,22 @@ The server supports AI-powered semantic search using Qdrant vector database and 
 2. **Vector Storage**: Embeddings are stored in Qdrant with rich metadata for filtering
 3. **Semantic Query**: User queries are embedded and matched against document vectors using cosine similarity
 
+### Three Search Collections
+
+| Collection | Description |
+|------------|-------------|
+| `bundestag-docs` | Document-level search (Drucksachen, Vorgaenge, Aktivitaeten, Personen) |
+| `bundestag-protocol-chunks` | Speech-level search from Plenarprotokolle |
+| `bundestag-document-chunks` | Section-level search from Drucksachen (articles, questions, etc.) |
+
 ### Features
 
 - **Multilingual**: Search in English, finds German documents (e.g., "renewable energy" → "Erneuerbare Energien")
+- **Hybrid Search**: Combines vector similarity with keyword boosting for improved precision
 - **Rich Filtering**: Filter by document type, entity type, Wahlperiode, Sachgebiet, initiative, faction, date range
-- **56,000+ Documents**: Covers Wahlperioden 19 and 20 (2017-present)
+- **Speech Search**: Find specific statements by speaker, party, speech type, or government officials
+- **Document Section Search**: Find specific paragraphs, questions, or articles within documents
+- **Incremental Indexing**: Uses `f.aktualisiert.start` for efficient updates after initial indexing
 
 ### Configuration
 
@@ -434,7 +491,7 @@ volumes:
 |-----------|-------------|
 | `query` | Natural language search query |
 | `limit` | Max results (1-50) |
-| `docTypes` | Filter: `drucksache`, `vorgang`, `aktivitaet` |
+| `docTypes` | Filter: `drucksache`, `vorgang`, `aktivitaet`, `person` |
 | `entityTypes` | Filter: `Gesetzentwurf`, `Kleine Anfrage`, `Rede`, etc. |
 | `wahlperiode` | Electoral period (19, 20) |
 | `sachgebiet` | Subject area |
@@ -442,6 +499,98 @@ volumes:
 | `fraktion` | Parliamentary group |
 | `dateFrom` / `dateTo` | Date range (YYYY-MM-DD) |
 | `scoreThreshold` | Minimum similarity (0-1, default 0.3) |
+
+### Speech Search Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `query` | Natural language search query |
+| `limit` | Max results (1-50) |
+| `speaker` | Filter by speaker name (e.g., "Friedrich Merz") |
+| `speakerParty` | Filter by party (e.g., "CDU/CSU", "SPD") |
+| `speakerState` | Filter by state for Bundesrat (e.g., "Bayern") |
+| `top` | Filter by agenda item (e.g., "TOP 1") |
+| `wahlperiode` | Electoral period |
+| `herausgeber` | Publisher: `BT` (Bundestag) or `BR` (Bundesrat) |
+| `speechType` | Type: `rede`, `befragung`, `fragestunde_antwort`, `kurzbeitrag` |
+| `isGovernment` | Filter for government officials (ministers, state secretaries) |
+| `category` | Category: `rede` (formal speeches) or `wortbeitrag` (contributions) |
+| `searchMode` | `semantic` (pure vector) or `hybrid` (vector + keyword boosting) |
+| `keywordBoost` | Boost factor for keyword matches in hybrid mode (0-2, default 0.5) |
+| `requiredKeywords` | Keywords that must appear in the text |
+| `excludeKeywords` | Keywords that must not appear in the text |
+
+### Document Section Search Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `query` | Natural language search query |
+| `limit` | Max results (1-50) |
+| `drucksachetyp` | Filter: `Gesetzentwurf`, `Kleine Anfrage`, `Antrag`, etc. |
+| `chunkType` | Section type: `problem`, `loesung`, `artikel`, `question`, etc. |
+| `wahlperiode` | Electoral period |
+| `urheber` | Author/initiator (e.g., "Bundesregierung", "CDU/CSU") |
+| `dateFrom` / `dateTo` | Date range (YYYY-MM-DD) |
+| `scoreThreshold` | Minimum similarity (0-1, default 0.3) |
+
+## NLP Analysis Service
+
+The server includes optional NLP analysis capabilities powered by a Python FastAPI service using spaCy's German language model.
+
+### Features
+
+- **Speech Extraction**: Parse Plenarprotokolle into individual speeches with speaker, party, and type
+- **Word Analysis**: Extract and lemmatize nouns, adjectives, and verbs with frequency counts
+- **Tone Analysis**: 12 communication style metrics including aggression, collaboration, and solution-focus
+- **Topic Classification**: Detect focus on 13 policy areas (migration, climate, economy, etc.)
+- **Speaker Profiles**: Generate comprehensive profiles with statistics, vocabulary, and communication style
+- **Party Comparison**: Compare parties based on their speeches with tone rankings and topic focus
+
+### Tone Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `affirmative` | Positive vs critical adjective ratio (0-100) |
+| `aggression` | Aggressive language intensity (0-100) |
+| `labeling` | "Othering" language usage (0-100) |
+| `solution_focus` | Solution vs problem-oriented verbs (0-100) |
+| `collaboration` | Collaborative vs confrontational (0-100) |
+| `demand_intensity` | Demanding language (fordern, müssen) (0-100) |
+| `authority` | Obligation vs possibility modals (0-100) |
+| `future_orientation` | Forward vs backward-looking (0-100) |
+
+### Topic Categories
+
+Migration, Climate (Klima), Economy (Wirtschaft), Social Policy (Soziales), Security (Sicherheit), Health (Gesundheit), Europe (Europa), Digital, Education (Bildung), Finance (Finanzen), Justice (Justiz), Labor (Arbeit), Mobility (Mobilität)
+
+### Configuration
+
+The analysis service runs as a separate Python container. Add to your `.env`:
+
+```bash
+ANALYSIS_SERVICE_URL=http://analysis:8000
+```
+
+### Docker Compose with Analysis
+
+```yaml
+services:
+  bundestag-mcp:
+    build: .
+    environment:
+      - ANALYSIS_SERVICE_URL=http://analysis:8000
+    depends_on:
+      - analysis
+
+  analysis:
+    build:
+      context: ../bundestag-noun-analysis
+      dockerfile: Dockerfile.api
+    expose:
+      - "8000"
+```
+
+> **Note**: The analysis service requires ~1GB RAM for the spaCy model and takes ~30s to start.
 
 ## DIP API
 

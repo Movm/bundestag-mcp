@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import * as embedding from '../services/embeddingService.js';
-import * as qdrant from '../services/qdrantService.js';
+import * as qdrant from '../services/qdrant/index.js';
 import * as indexer from '../jobs/indexer.js';
 import { config } from '../config.js';
 
@@ -204,7 +204,12 @@ export const searchSpeechesTool = {
 Searches through chunked Plenarprotokolle to find specific statements, arguments, or topics.
 Example: "Was sagt die CDU zur Schuldenbremse?" or "Argumente gegen das Heizungsgesetz"
 Use this to find what specific politicians or parties said about topics.
-Requires QDRANT_ENABLED=true and protocol indexing to have been run.`,
+Requires QDRANT_ENABLED=true and protocol indexing to have been run.
+
+Enhanced filters available for speech types:
+- speechType: Filter by type (rede, befragung, fragestunde_antwort, kurzbeitrag, sonstiges)
+- isGovernment: Filter for government official speeches (ministers, state secretaries)
+- category: Filter by category (rede = formal speeches, wortbeitrag = contributions)`,
 
   inputSchema: {
     query: z.string().min(1).max(1000)
@@ -228,7 +233,26 @@ Requires QDRANT_ENABLED=true and protocol indexing to have been run.`,
     dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
       .describe('Filter to date (YYYY-MM-DD)'),
     scoreThreshold: z.number().min(0).max(1).default(0.3)
-      .describe('Minimum similarity score (0-1, higher = more similar)')
+      .describe('Minimum similarity score (0-1, higher = more similar)'),
+    // Enhanced filters from Python parser
+    speechType: z.enum(['rede', 'befragung', 'fragestunde_antwort', 'kurzbeitrag', 'sonstiges']).optional()
+      .describe('Filter by speech type: rede (formal), befragung (gov Q&A), fragestunde_antwort (question hour)'),
+    speechTypes: z.array(z.enum(['rede', 'befragung', 'fragestunde_antwort', 'kurzbeitrag', 'sonstiges'])).optional()
+      .describe('Filter by multiple speech types'),
+    isGovernment: z.boolean().optional()
+      .describe('Filter for government officials only (ministers, state secretaries)'),
+    category: z.enum(['rede', 'wortbeitrag']).optional()
+      .describe('Filter by category: rede (formal speeches) or wortbeitrag (contributions)'),
+
+    // AI-controllable precision parameters
+    searchMode: z.enum(['semantic', 'hybrid']).default('hybrid')
+      .describe('Search mode: semantic (pure vector), hybrid (vector + keyword boosting, default)'),
+    keywordBoost: z.number().min(0).max(2).default(0.5)
+      .describe('Boost factor for keyword matches in hybrid mode (0=no boost, 2=strong boost)'),
+    requiredKeywords: z.array(z.string()).optional()
+      .describe('Keywords that MUST appear in the text (hard filter, applied post-search)'),
+    excludeKeywords: z.array(z.string()).optional()
+      .describe('Keywords that must NOT appear in the text (exclusion filter)')
   },
 
   async handler(params) {
@@ -267,19 +291,61 @@ Requires QDRANT_ENABLED=true and protocol indexing to have been run.`,
         wahlperiode: params.wahlperiode,
         herausgeber: params.herausgeber,
         dateFrom: params.dateFrom,
-        dateTo: params.dateTo
+        dateTo: params.dateTo,
+        // Enhanced filters
+        speechType: params.speechType,
+        speechTypes: params.speechTypes,
+        isGovernment: params.isGovernment,
+        category: params.category
       });
 
-      const results = await qdrant.searchProtocolChunks(queryVector, {
-        limit: params.limit,
-        filter,
-        scoreThreshold: params.scoreThreshold
-      });
+      // Extract keywords from query for hybrid search
+      const queryKeywords = params.query
+        .split(/\s+/)
+        .filter(w => w.length > 3)
+        .map(w => w.replace(/[.,!?;:]/g, ''));
+
+      // Combine with any required keywords
+      const allKeywords = [
+        ...queryKeywords,
+        ...(params.requiredKeywords || [])
+      ];
+
+      let results;
+      const searchMode = params.searchMode || 'hybrid';
+
+      if (searchMode === 'hybrid') {
+        // Use hybrid search with keyword boosting
+        results = await qdrant.hybridSearchProtocolChunks(queryVector, {
+          limit: params.limit,
+          filter,
+          scoreThreshold: params.scoreThreshold,
+          keywords: allKeywords,
+          excludeKeywords: params.excludeKeywords || [],
+          keywordBoost: params.keywordBoost || 0.5
+        });
+      } else {
+        // Pure semantic search
+        results = await qdrant.searchProtocolChunks(queryVector, {
+          limit: params.limit,
+          filter,
+          scoreThreshold: params.scoreThreshold
+        });
+      }
+
+      // Apply required keywords filter (hard filter for must-have keywords)
+      if (params.requiredKeywords && params.requiredKeywords.length > 0) {
+        results = results.filter(r => {
+          const text = r.payload.text.toLowerCase();
+          return params.requiredKeywords.every(kw => text.includes(kw.toLowerCase()));
+        });
+      }
 
       return {
         success: true,
         endpoint: 'search_speeches',
         query: params.query,
+        searchMode: searchMode,
         filters: {
           speaker: params.speaker || 'all',
           speakerParty: params.speakerParty || 'all',
@@ -289,11 +355,24 @@ Requires QDRANT_ENABLED=true and protocol indexing to have been run.`,
           herausgeber: params.herausgeber || 'all',
           dateRange: params.dateFrom || params.dateTo
             ? `${params.dateFrom || '*'} to ${params.dateTo || '*'}`
-            : 'all'
+            : 'all',
+          // Enhanced filters
+          speechType: params.speechType || params.speechTypes?.join(',') || 'all',
+          isGovernment: params.isGovernment !== undefined ? params.isGovernment : 'all',
+          category: params.category || 'all'
         },
+        // Hybrid search info
+        hybridParams: searchMode === 'hybrid' ? {
+          keywordBoost: params.keywordBoost || 0.5,
+          keywords: allKeywords,
+          excludeKeywords: params.excludeKeywords || [],
+          requiredKeywords: params.requiredKeywords || []
+        } : null,
         totalResults: results.length,
         results: results.map(r => ({
-          score: r.score.toFixed(3),
+          score: (r.boostedScore || r.score).toFixed(3),
+          originalScore: r.originalScore ? r.originalScore.toFixed(3) : undefined,
+          keywordMatches: r.keywordMatches || [],
           speaker: r.payload.speaker,
           speakerParty: r.payload.speaker_party,
           speakerState: r.payload.speaker_state,
@@ -306,7 +385,14 @@ Requires QDRANT_ENABLED=true and protocol indexing to have been run.`,
           dokumentnummer: r.payload.dokumentnummer,
           datum: r.payload.datum,
           wahlperiode: r.payload.wahlperiode,
-          herausgeber: r.payload.herausgeber
+          herausgeber: r.payload.herausgeber,
+          // Enhanced fields from Python parser
+          speechType: r.payload.speech_type,
+          category: r.payload.category,
+          isGovernment: r.payload.is_government,
+          firstName: r.payload.first_name,
+          lastName: r.payload.last_name,
+          acadTitle: r.payload.acad_title
         }))
       };
 
@@ -353,6 +439,55 @@ Requires QDRANT_ENABLED=true and MISTRAL_API_KEY to be set.`,
       message: result.message,
       endpoint: 'trigger_protocol_indexing',
       protocolStats: indexer.getProtocolStats()
+    };
+  }
+};
+
+export const reindexProtocolsTool = {
+  name: 'bundestag_reindex_protocols',
+  description: `Force full re-indexing of all protocols with the enhanced speech parser.
+
+WARNING: This will DELETE ALL existing protocol chunks and rebuild from scratch!
+
+Use this when:
+- Upgrading to a new indexing schema (new payload fields)
+- The Python analysis service has been updated with better speech parsing
+- You need to re-index with speech_type, is_government, and category fields
+
+This uses the Python FastAPI service for enhanced speech extraction if available,
+falling back to the JavaScript parser if not.
+
+Requires:
+- QDRANT_ENABLED=true
+- MISTRAL_API_KEY (for embeddings)
+- Optionally: Python analysis service running for enhanced parsing`,
+
+  inputSchema: {},
+
+  async handler() {
+    if (!config.qdrant.enabled) {
+      return {
+        error: true,
+        message: 'Qdrant is not enabled. Set QDRANT_ENABLED=true.',
+        endpoint: 'reindex_protocols'
+      };
+    }
+
+    if (!embedding.isAvailable()) {
+      return {
+        error: true,
+        message: 'Embedding service not available. Set MISTRAL_API_KEY.',
+        endpoint: 'reindex_protocols'
+      };
+    }
+
+    const result = await indexer.triggerProtocolReindex();
+
+    return {
+      success: result.success,
+      message: result.message,
+      endpoint: 'reindex_protocols',
+      warning: 'All existing protocol data was deleted before re-indexing'
     };
   }
 };
@@ -584,6 +719,7 @@ export const semanticSearchTools = [
   triggerIndexingTool,
   searchSpeechesTool,
   triggerProtocolIndexingTool,
+  reindexProtocolsTool,
   protocolSearchStatusTool,
   searchDocumentSectionsTool,
   triggerDocumentChunkIndexingTool,

@@ -254,6 +254,137 @@ Please follow these steps:
         ]
       };
     }
+  },
+
+  {
+    name: 'analyze-debate',
+    description: 'Analyze a plenary debate. Extract speeches, analyze communication style, and identify key topics discussed.',
+    arguments: [
+      {
+        name: 'protocol_id',
+        description: 'The Plenarprotokoll ID to analyze (e.g., "5706")',
+        required: false
+      },
+      {
+        name: 'date',
+        description: 'Date of the plenary session to find (YYYY-MM-DD format)',
+        required: false
+      },
+      {
+        name: 'topic',
+        description: 'Topic to search for in protocols (e.g., "Klimaschutz")',
+        required: false
+      }
+    ],
+    handler: ({ protocol_id, date, topic }) => {
+      const hasProtocolId = !!protocol_id;
+
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: hasProtocolId
+                ? `I want to analyze the plenary debate from Plenarprotokoll ID: ${protocol_id}
+
+Please follow these steps:
+
+1. **Fetch the protocol**
+   Use \`bundestag_get_plenarprotokoll\` with:
+   - id: ${protocol_id}
+   - includeFullText: true
+
+2. **Check analysis service**
+   Use \`bundestag_analysis_health\` to verify the NLP service is available
+
+3. **Extract individual speeches**
+   Use \`bundestag_extract_speeches\` with the protocol's full text
+   This identifies each speaker, their party, and speech boundaries
+
+4. **Analyze overall tone**
+   Use \`bundestag_analyze_tone\` on the full protocol text
+   This gives aggregate communication style metrics
+
+5. **Classify topics discussed**
+   Use \`bundestag_classify_topics\` on the full protocol text
+   This shows which policy areas were discussed
+
+6. **Generate analysis report**
+
+   ## Protocol Overview
+   - Date and session number
+   - Total speeches extracted
+   - Parties represented
+
+   ## Speaker Breakdown
+   - Speeches per party
+   - Most active speakers
+
+   ## Communication Style
+   - Overall tone (aggressive vs collaborative)
+   - Solution-oriented vs problem-focused
+   - Notable patterns
+
+   ## Topics Discussed
+   - Top 5 policy areas by mention frequency
+   - Key themes and debates
+
+   ## Key Quotes
+   - Notable statements from the debate`
+                : `I want to analyze a plenary debate ${date ? `from ${date}` : topic ? `about "${topic}"` : ''}.
+
+Please follow these steps:
+
+1. **Find the protocol**
+   Use \`bundestag_search_plenarprotokolle\` with:
+   ${date ? `- datum_start: "${date}"\n   - datum_end: "${date}"` : ''}
+   ${topic ? `- Use bundestag_search_plenarprotokolle_text with query: "${topic}"` : ''}
+   - wahlperiode: 20
+
+2. **Fetch full protocol**
+   Use \`bundestag_get_plenarprotokoll\` with:
+   - id: (from step 1)
+   - includeFullText: true
+
+3. **Check analysis service**
+   Use \`bundestag_analysis_health\` to verify NLP is available
+
+4. **Extract speeches**
+   Use \`bundestag_extract_speeches\` with the protocol text
+   This parses individual speeches by speaker
+
+5. **Analyze tone and topics**
+   Use \`bundestag_analyze_tone\` for communication style
+   Use \`bundestag_classify_topics\` for policy area detection
+
+6. **Generate analysis report**
+
+   ## Protocol Overview
+   - Session date and number
+   - Total speakers and speeches
+
+   ## Speaker Analysis
+   - Breakdown by party
+   - Most active contributors
+
+   ## Tone Analysis
+   - Aggression levels
+   - Collaboration scores
+   - Solution vs problem focus
+
+   ## Topics Covered
+   - Main policy areas discussed
+   - Topic frequency rankings
+
+   ## Summary
+   - Key takeaways from the debate
+   - Notable quotes or exchanges`
+            }
+          }
+        ]
+      };
+    }
   }
 ];
 

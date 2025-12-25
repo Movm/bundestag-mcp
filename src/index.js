@@ -16,6 +16,7 @@ console.log('[Boot] Loading config...');
 import { config, validateConfig } from './config.js';
 import { allTools } from './tools/search.js';
 import { semanticSearchTools } from './tools/semanticSearch.js';
+import { analysisTools } from './tools/analysis.js';
 import { clientConfigTool } from './tools/clientConfig.js';
 import { getCacheStats } from './utils/cache.js';
 import { info, error, getStats } from './utils/logger.js';
@@ -30,7 +31,7 @@ import {
   updateActiveSessions
 } from './utils/metrics.js';
 import * as indexer from './jobs/indexer.js';
-import * as qdrantService from './services/qdrantService.js';
+import * as qdrantService from './services/qdrant/index.js';
 console.log('[Boot] Config loaded');
 
 // Validate configuration
@@ -104,8 +105,8 @@ function createMcpServer(baseUrl) {
 
   // === MCP TOOLS ===
 
-  // Register all search/entity tools
-  const allToolsCombined = [...allTools, ...semanticSearchTools];
+  // Register all search/entity tools + analysis tools
+  const allToolsCombined = [...allTools, ...semanticSearchTools, ...analysisTools];
   for (const tool of allToolsCombined) {
     server.tool(
       tool.name,

@@ -44,8 +44,14 @@ docker run -p 3000:3000 \
 src/
 ├── config.js              # Environment config and validation
 ├── api/bundestag.js       # DIP API client with all endpoint methods
+├── services/
+│   ├── analysisService.js # HTTP client for Python NLP analysis service
+│   ├── embeddingService.js # Mistral AI embeddings
+│   └── qdrantService.js   # Vector database operations
 ├── tools/
 │   ├── search.js          # 14 search/entity tools with Zod schemas
+│   ├── analysis.js        # 5 NLP analysis tools (speech extraction, tone, topics)
+│   ├── semanticSearch.js  # Semantic search tools
 │   └── clientConfig.js    # Client configuration generator tool
 ├── resources/info.js      # MCP resources (system-prompt, info, etc.)
 └── utils/
@@ -73,13 +79,16 @@ Three-layer cache in `src/utils/cache.js`:
 ### MCP Protocol
 
 The server exposes:
-- **Tools**: 14 search/entity tools + client config tool
+- **Tools**: 22 tools across search, semantic search, and NLP analysis
   - Drucksachen: search, get, text search
   - Plenarprotokolle: search, get, text search
   - Vorgänge: search, get, positionen search
   - Personen: search, get
   - Aktivitäten: search, get
+  - Semantic search: search, status, trigger_indexing
+  - NLP Analysis: extract_speeches, analyze_text, analyze_tone, classify_topics, analysis_health
   - Utility: cache_stats, get_client_config
+- **Prompts**: 4 workflow templates (search-legislation, track-proceeding, mp-activity-report, analyze-debate)
 - **Resources**: system-prompt, info, wahlperioden, drucksachetypen
 
 All tools are read-only (annotated with `readOnlyHint: true`).
@@ -93,6 +102,10 @@ Optional:
 - `PORT` - Server port (default: 3000)
 - `PUBLIC_URL` - For config generation URLs
 - `LOG_LEVEL` - DEBUG, INFO, WARN, ERROR (default: INFO)
+- `ANALYSIS_SERVICE_URL` - Python NLP analysis service URL (default: http://localhost:8000)
+- `QDRANT_ENABLED` - Enable semantic search (default: false)
+- `QDRANT_URL` - Qdrant vector database URL
+- `MISTRAL_API_KEY` - Mistral AI API key for embeddings
 
 ## DIP API Entities
 

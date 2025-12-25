@@ -93,6 +93,47 @@ All search results include:
 
 ## Caching
 Results are cached for 5 minutes. Use \`useCache: false\` for fresh data.
+
+## NLP Analysis Tools
+
+The server includes tools for natural language processing of German parliamentary text.
+
+### Speech Extraction
+\`\`\`
+bundestag_extract_speeches({ text: "<protocol full text>" })
+\`\`\`
+Parses Plenarprotokolle into individual speeches with speaker, party, and type.
+
+### Text Analysis
+\`\`\`
+bundestag_analyze_text({ text: "...", include_tone: true, include_topics: true })
+\`\`\`
+Returns word frequencies (nouns, adjectives, verbs) and optional tone/topic scores.
+
+### Tone Analysis
+\`\`\`
+bundestag_analyze_tone({ text: "..." })
+\`\`\`
+Returns 12 communication style metrics (0-100 scale):
+- \`aggression\`: Aggressive language intensity
+- \`collaboration\`: Collaborative vs confrontational
+- \`solution_focus\`: Solution vs problem orientation
+- \`demand_intensity\`: Demanding language (fordern, müssen)
+
+### Topic Classification
+\`\`\`
+bundestag_classify_topics({ text: "..." })
+\`\`\`
+Returns per-1000-word scores for 13 policy areas:
+migration, klima, wirtschaft, soziales, sicherheit, gesundheit,
+europa, digital, bildung, finanzen, justiz, arbeit, mobilitaet
+
+### Analysis Workflow Example
+1. Get protocol with \`bundestag_get_plenarprotokoll({ id: X, includeFullText: true })\`
+2. Check service with \`bundestag_analysis_health()\`
+3. Extract speeches with \`bundestag_extract_speeches({ text: fullText })\`
+4. Analyze tone with \`bundestag_analyze_tone({ text: fullText })\`
+5. Classify topics with \`bundestag_classify_topics({ text: fullText })\`
 `;
   }
 };
@@ -136,7 +177,12 @@ export const infoResource = {
           'Pagination with cursors',
           'Full document text retrieval',
           'Proceeding position tracking',
-          'Response caching'
+          'Response caching',
+          'Semantic search (Qdrant + Mistral)',
+          'Speech extraction from protocols',
+          'NLP word frequency analysis',
+          'Communication style/tone analysis',
+          'Political topic classification'
         ]
       },
       tools: [
@@ -153,6 +199,14 @@ export const infoResource = {
         'bundestag_get_person',
         'bundestag_search_aktivitaeten',
         'bundestag_get_aktivitaet',
+        'bundestag_semantic_search',
+        'bundestag_semantic_search_status',
+        'bundestag_trigger_indexing',
+        'bundestag_extract_speeches',
+        'bundestag_analyze_text',
+        'bundestag_analyze_tone',
+        'bundestag_classify_topics',
+        'bundestag_analysis_health',
         'bundestag_cache_stats',
         'get_client_config'
       ]
