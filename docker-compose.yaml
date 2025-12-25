@@ -16,6 +16,9 @@ services:
       - INDEXER_INTERVAL_MINUTES=${INDEXER_INTERVAL_MINUTES:-15}
       - INDEXER_WAHLPERIODEN=${INDEXER_WAHLPERIODEN:-19,20}
       - ANALYSIS_SERVICE_URL=http://analysis:8000
+      - INDEXER_STATE_PATH=/app/data/indexer-state.db
+    volumes:
+      - indexer_data:/app/data
     depends_on:
       qdrant:
         condition: service_healthy
@@ -71,3 +74,4 @@ services:
 
 volumes:
   qdrant_data:
+  indexer_data:

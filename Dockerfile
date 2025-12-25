@@ -1,7 +1,12 @@
 FROM node:20-slim
 
-# Install curl for healthcheck
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# Install curl for healthcheck and build tools for native modules (better-sqlite3)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # OCI Image Labels
 LABEL org.opencontainers.image.title="Bundestag MCP Server"
@@ -26,6 +31,9 @@ RUN npm ci --only=production
 
 # Copy source code
 COPY src/ ./src/
+
+# Create data directory for SQLite state
+RUN mkdir -p /app/data
 
 # Expose port
 EXPOSE 3000

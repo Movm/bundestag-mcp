@@ -16,6 +16,7 @@ import * as logger from '../utils/logger.js';
 import { parseProtokoll } from '../services/protokollParser.js';
 import { parseDrucksache } from '../services/drucksacheParser.js';
 import * as analysisService from '../services/analysisService.js';
+import * as indexerState from '../services/indexerState.js';
 
 let indexerInterval = null;
 let isRunning = false;
@@ -62,13 +63,20 @@ async function getExistingPointIds(pointIds) {
 /**
  * Process a batch of documents: filter, embed, upsert
  * Returns count of newly indexed documents
+ * @param {boolean} isIncremental - Skip Qdrant check when true (DIP API already filtered)
  */
-async function processBatch(batch, docType, wahlperiode) {
+async function processBatch(batch, docType, wahlperiode, isIncremental = false) {
   const pointIds = batch.map(doc => generatePointId(docType, doc.id));
 
-  // Check which docs are already indexed (skip them)
-  const existingIds = await getExistingPointIds(pointIds);
-  const newDocs = batch.filter((_, idx) => !existingIds.has(pointIds[idx]));
+  let newDocs = batch;
+  let skippedCount = 0;
+
+  // In incremental mode, skip Qdrant check - DIP API already filtered by aktualisiert
+  if (!isIncremental) {
+    const existingIds = await getExistingPointIds(pointIds);
+    newDocs = batch.filter((_, idx) => !existingIds.has(pointIds[idx]));
+    skippedCount = existingIds.size;
+  }
 
   if (newDocs.length === 0) {
     return { indexed: 0, skipped: batch.length };
@@ -83,7 +91,7 @@ async function processBatch(batch, docType, wahlperiode) {
   } catch (err) {
     logger.error('INDEXER', `Embedding failed: ${err.message}`);
     stats.errors++;
-    return { indexed: 0, skipped: existingIds.size };
+    return { indexed: 0, skipped: skippedCount };
   }
 
   // Build points for Qdrant
@@ -125,11 +133,11 @@ async function processBatch(batch, docType, wahlperiode) {
   // Upsert to Qdrant
   try {
     await qdrant.upsertPoints(points);
-    return { indexed: points.length, skipped: existingIds.size };
+    return { indexed: points.length, skipped: skippedCount };
   } catch (err) {
     logger.error('INDEXER', `Qdrant upsert failed: ${err.message}`);
     stats.errors++;
-    return { indexed: 0, skipped: existingIds.size };
+    return { indexed: 0, skipped: skippedCount };
   }
 }
 
@@ -176,9 +184,11 @@ async function indexDocumentType(docType, searchFn, wahlperiode, updatedSince = 
       hasMore = !!cursor && documents.length > 0;
 
       // Process current page in batches
+      // In incremental mode, skip Qdrant checks - DIP API already filtered
+      const isIncremental = !!updatedSince;
       for (let i = 0; i < documents.length; i += BATCH_SIZE) {
         const batch = documents.slice(i, i + BATCH_SIZE);
-        const result = await processBatch(batch, docType, wahlperiode);
+        const result = await processBatch(batch, docType, wahlperiode, isIncremental);
         indexed += result.indexed;
         skipped += result.skipped;
       }
@@ -210,7 +220,7 @@ async function indexDocumentType(docType, searchFn, wahlperiode, updatedSince = 
 
 /**
  * Run an indexing pass (full or incremental)
- * First run is full, subsequent runs use f.aktualisiert.start for incremental updates
+ * Uses per-WP+doctype timestamps from SQLite for incremental mode
  */
 async function runIndexingPass() {
   if (isRunning) {
@@ -236,22 +246,10 @@ async function runIndexingPass() {
   const startTime = Date.now();
   let totalIndexed = 0;
   let totalSkipped = 0;
+  const OVERLAP_MS = 20 * 60 * 1000; // 20 minutes overlap for DIP API delay
 
-  // Use incremental mode if we have a previous successful run
-  // DIP API has 15 min delay, so subtract 20 min for safety overlap
-  let updatedSince = null;
-  if (lastSuccessfulIndexTime) {
-    const overlapMs = 20 * 60 * 1000; // 20 minutes overlap
-    const sinceDate = new Date(lastSuccessfulIndexTime.getTime() - overlapMs);
-    updatedSince = sinceDate.toISOString();
-    stats.mode = 'incremental';
-  } else {
-    stats.mode = 'full';
-  }
-
-  logger.info('INDEXER', `Starting ${stats.mode} indexing pass`, {
-    wahlperioden: config.indexer.wahlperioden,
-    ...(updatedSince && { since: updatedSince })
+  logger.info('INDEXER', `Starting indexing pass`, {
+    wahlperioden: config.indexer.wahlperioden
   });
 
   try {
@@ -263,9 +261,24 @@ async function runIndexingPass() {
         ['aktivitaet', api.searchAktivitaeten],
         ['person', api.searchPersonen]
       ]) {
+        // Get per-WP+doctype last indexed time from SQLite
+        const lastTime = indexerState.getLastIndexTime(wp, docType);
+        let updatedSince = null;
+
+        if (lastTime) {
+          const sinceDate = new Date(lastTime.getTime() - OVERLAP_MS);
+          updatedSince = sinceDate.toISOString();
+          stats.mode = 'incremental';
+        } else {
+          stats.mode = 'full';
+        }
+
         const result = await indexDocumentType(docType, searchFn, wp, updatedSince);
         totalIndexed += result.indexed;
         totalSkipped += result.skipped;
+
+        // Save per-WP+doctype timestamp after success
+        indexerState.setLastIndexTime(wp, docType, new Date(), result.indexed);
       }
     }
 
@@ -276,9 +289,9 @@ async function runIndexingPass() {
     stats.lastRunDocuments = totalIndexed;
     stats.lastRunSkipped = totalSkipped;
     lastIndexTime = new Date();
-    lastSuccessfulIndexTime = new Date(); // Mark successful run for incremental mode
+    lastSuccessfulIndexTime = new Date();
 
-    logger.info('INDEXER', `Indexing pass complete (${stats.mode})`, {
+    logger.info('INDEXER', `Indexing pass complete`, {
       newDocuments: totalIndexed,
       skipped: totalSkipped,
       durationMs: duration,
@@ -307,6 +320,9 @@ export async function start() {
     return;
   }
 
+  // Initialize persistent state
+  indexerState.init();
+
   logger.info('INDEXER', `Starting background indexer`, {
     intervalMinutes: config.indexer.intervalMinutes,
     wahlperioden: config.indexer.wahlperioden
@@ -317,6 +333,14 @@ export async function start() {
     logger.error('INDEXER', 'Failed to connect to Qdrant on startup');
     return;
   }
+
+  // Ensure protocol and document collections exist too
+  // (Sets isHealthy flags so search tools report availability)
+  await qdrant.ensureProtocolCollection();
+  await qdrant.ensureDocumentCollection();
+
+  // Auto-bootstrap state from Qdrant if empty (for existing deployments)
+  await indexerState.bootstrapFromQdrant(qdrant.getClient());
 
   // Start first indexing pass
   runIndexingPass();
@@ -645,8 +669,9 @@ async function indexProtocol(protokoll) {
 
 /**
  * Index all protocols for a wahlperiode
+ * @param {string} datumSince - ISO date string for incremental mode (optional)
  */
-async function indexProtocolsForWahlperiode(wahlperiode, herausgeber = 'BT') {
+async function indexProtocolsForWahlperiode(wahlperiode, herausgeber = 'BT', datumSince = null) {
   const API_DELAY_MS = 500;
   let cursor = null;
   let hasMore = true;
@@ -654,14 +679,17 @@ async function indexProtocolsForWahlperiode(wahlperiode, herausgeber = 'BT') {
   let totalProtocols = 0;
   let skipped = 0;
 
-  logger.info('INDEXER', `Indexing protocols for WP${wahlperiode} (${herausgeber})`);
+  const mode = datumSince ? 'incremental' : 'full';
+  logger.info('INDEXER', `Indexing protocols for WP${wahlperiode} (${herausgeber}, ${mode})`,
+    datumSince ? { since: datumSince } : {});
 
   while (hasMore) {
     try {
       const result = await api.searchPlenarprotokolle({
         wahlperiode,
         limit: 20,
-        cursor
+        cursor,
+        ...(datumSince && { datum_start: datumSince })
       }, { useCache: false });
 
       if (!result.documents || result.documents.length === 0) {
@@ -723,19 +751,27 @@ export async function runProtocolIndexing() {
   const startTime = Date.now();
   let totalProtocols = 0;
   let totalChunks = 0;
+  const OVERLAP_MS = 20 * 60 * 1000;
 
   try {
     // Index all configured wahlperioden
     for (const wahlperiode of config.indexer.wahlperioden) {
+      // Get per-WP last indexed time for protocols
+      const lastTime = indexerState.getLastIndexTime(wahlperiode, 'protocol');
+      let datumSince = null;
+
+      if (lastTime) {
+        const sinceDate = new Date(lastTime.getTime() - OVERLAP_MS);
+        datumSince = sinceDate.toISOString().split('T')[0]; // API expects date only
+      }
+
       // Index Bundestag protocols
-      const btResult = await indexProtocolsForWahlperiode(wahlperiode, 'BT');
+      const btResult = await indexProtocolsForWahlperiode(wahlperiode, 'BT', datumSince);
       totalProtocols += btResult.protocols;
       totalChunks += btResult.chunks;
 
-      // Optionally index Bundesrat protocols
-      // const brResult = await indexProtocolsForWahlperiode(wahlperiode, 'BR');
-      // totalProtocols += brResult.protocols;
-      // totalChunks += brResult.chunks;
+      // Save state after success
+      indexerState.setLastIndexTime(wahlperiode, 'protocol', new Date(), btResult.protocols);
     }
 
     const duration = Date.now() - startTime;
@@ -958,8 +994,9 @@ async function indexDrucksache(drucksache) {
 
 /**
  * Index all Drucksachen for a wahlperiode
+ * @param {string} aktualisiert_start - ISO date string for incremental mode (optional)
  */
-async function indexDrucksachenChunksForWahlperiode(wahlperiode, drucksachetypen = null) {
+async function indexDrucksachenChunksForWahlperiode(wahlperiode, drucksachetypen = null, aktualisiert_start = null) {
   const API_DELAY_MS = 500;
   let cursor = null;
   let hasMore = true;
@@ -976,7 +1013,9 @@ async function indexDrucksachenChunksForWahlperiode(wahlperiode, drucksachetypen
     'Beschlussempfehlung und Bericht'
   ];
 
-  logger.info('INDEXER', `Indexing Drucksache chunks for WP${wahlperiode}`, { types: typesToIndex });
+  const mode = aktualisiert_start ? 'incremental' : 'full';
+  logger.info('INDEXER', `Indexing Drucksache chunks for WP${wahlperiode} (${mode})`,
+    { types: typesToIndex, ...(aktualisiert_start && { since: aktualisiert_start }) });
 
   for (const drucksachetyp of typesToIndex) {
     cursor = null;
@@ -990,7 +1029,8 @@ async function indexDrucksachenChunksForWahlperiode(wahlperiode, drucksachetypen
           wahlperiode,
           drucksachetyp,
           limit: 20,
-          cursor
+          cursor,
+          ...(aktualisiert_start && { aktualisiert_start })
         }, { useCache: false });
 
         if (!result.documents || result.documents.length === 0) {
@@ -1057,13 +1097,26 @@ export async function runDocumentChunkIndexing() {
   const startTime = Date.now();
   let totalDocuments = 0;
   let totalChunks = 0;
+  const OVERLAP_MS = 20 * 60 * 1000;
 
   try {
     // Index all configured wahlperioden
     for (const wahlperiode of config.indexer.wahlperioden) {
-      const result = await indexDrucksachenChunksForWahlperiode(wahlperiode);
+      // Get per-WP last indexed time for document chunks
+      const lastTime = indexerState.getLastIndexTime(wahlperiode, 'document_chunk');
+      let aktualisiert_start = null;
+
+      if (lastTime) {
+        const sinceDate = new Date(lastTime.getTime() - OVERLAP_MS);
+        aktualisiert_start = sinceDate.toISOString();
+      }
+
+      const result = await indexDrucksachenChunksForWahlperiode(wahlperiode, null, aktualisiert_start);
       totalDocuments += result.documents;
       totalChunks += result.chunks;
+
+      // Save state after success
+      indexerState.setLastIndexTime(wahlperiode, 'document_chunk', new Date(), result.documents);
     }
 
     const duration = Date.now() - startTime;
