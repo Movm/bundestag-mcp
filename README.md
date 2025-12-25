@@ -589,9 +589,7 @@ services:
       - analysis
 
   analysis:
-    build:
-      context: ../bundestag-noun-analysis
-      dockerfile: Dockerfile.api
+    image: ghcr.io/movm/bundestag-analysis:latest
     expose:
       - "8000"
 ```

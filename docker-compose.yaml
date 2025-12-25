@@ -29,10 +29,13 @@ services:
     restart: unless-stopped
 
   # Python NLP analysis service (spaCy-based)
+  # Uses published image from ghcr.io. For local development, uncomment build section below.
   analysis:
-    build:
-      context: ../bundestag-noun-analysis
-      dockerfile: Dockerfile.api
+    image: ghcr.io/movm/bundestag-analysis:latest
+    # For local development, comment out 'image' and uncomment:
+    # build:
+    #   context: ../bundestag-analysis
+    #   dockerfile: Dockerfile.api
     expose:
       - "8000"
     healthcheck:
