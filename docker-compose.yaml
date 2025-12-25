@@ -60,6 +60,7 @@ services:
     environment:
       - QDRANT__SERVICE__GRPC_PORT=6334
       - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}
+      - QDRANT_EXTERNAL_PORT=${QDRANT_EXTERNAL_PORT:-127.0.0.1:16333}
     healthcheck:
       test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/localhost/6333' || exit 1"]
       interval: 30s
