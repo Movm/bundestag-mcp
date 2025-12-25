@@ -19,7 +19,10 @@ import * as analysisService from '../services/analysisService.js';
 import * as indexerState from '../services/indexerState.js';
 
 let indexerInterval = null;
-let isRunning = false;
+// Separate running flags for each indexer type (allows parallel operation)
+let isMainRunning = false;
+let isProtocolRunning = false;
+let isDocumentRunning = false;
 let lastIndexTime = null;
 let lastSuccessfulIndexTime = null; // For incremental updates
 let stats = {
@@ -223,8 +226,8 @@ async function indexDocumentType(docType, searchFn, wahlperiode, updatedSince = 
  * Uses per-WP+doctype timestamps from SQLite for incremental mode
  */
 async function runIndexingPass() {
-  if (isRunning) {
-    logger.warn('INDEXER', 'Indexing already in progress, skipping');
+  if (isMainRunning) {
+    logger.warn('INDEXER', 'Main indexing already in progress, skipping');
     return;
   }
 
@@ -242,7 +245,7 @@ async function runIndexingPass() {
     }
   }
 
-  isRunning = true;
+  isMainRunning = true;
   const startTime = Date.now();
   let totalIndexed = 0;
   let totalSkipped = 0;
@@ -302,7 +305,7 @@ async function runIndexingPass() {
     logger.error('INDEXER', `Indexing pass failed: ${err.message}`);
     stats.errors++;
   } finally {
-    isRunning = false;
+    isMainRunning = false;
   }
 }
 
@@ -369,7 +372,10 @@ export function stop() {
 export function getStats() {
   return {
     enabled: config.indexer.enabled,
-    running: isRunning,
+    running: isMainRunning || isProtocolRunning || isDocumentRunning,
+    mainRunning: isMainRunning,
+    protocolRunning: isProtocolRunning,
+    documentRunning: isDocumentRunning,
     mode: stats.mode,
     lastIndexTime: lastIndexTime?.toISOString() || null,
     lastSuccessfulIndexTime: lastSuccessfulIndexTime?.toISOString() || null,
@@ -387,8 +393,8 @@ export function getStats() {
  * Trigger a manual indexing run
  */
 export async function triggerManualRun() {
-  if (isRunning) {
-    return { success: false, message: 'Indexing already in progress' };
+  if (isMainRunning) {
+    return { success: false, message: 'Main indexing already in progress' };
   }
 
   runIndexingPass();
@@ -732,8 +738,8 @@ async function indexProtocolsForWahlperiode(wahlperiode, herausgeber = 'BT', dat
  * Run protocol indexing pass
  */
 export async function runProtocolIndexing() {
-  if (isRunning) {
-    logger.warn('INDEXER', 'Indexing already in progress, skipping protocol indexing');
+  if (isProtocolRunning) {
+    logger.warn('INDEXER', 'Protocol indexing already in progress');
     return;
   }
 
@@ -749,7 +755,7 @@ export async function runProtocolIndexing() {
     return;
   }
 
-  isRunning = true;
+  isProtocolRunning = true;
   const startTime = Date.now();
   let totalProtocols = 0;
   let totalChunks = 0;
@@ -794,7 +800,7 @@ export async function runProtocolIndexing() {
     logger.error('INDEXER', `Protocol indexing failed: ${err.message}`);
     protocolStats.errors++;
   } finally {
-    isRunning = false;
+    isProtocolRunning = false;
   }
 }
 
@@ -815,8 +821,8 @@ export function getProtocolStats() {
  * Trigger manual protocol indexing
  */
 export async function triggerProtocolIndexing() {
-  if (isRunning) {
-    return { success: false, message: 'Indexing already in progress' };
+  if (isProtocolRunning) {
+    return { success: false, message: 'Protocol indexing already in progress' };
   }
 
   runProtocolIndexing();
@@ -828,8 +834,8 @@ export async function triggerProtocolIndexing() {
  * WARNING: This deletes ALL existing protocol data!
  */
 export async function triggerProtocolReindex() {
-  if (isRunning) {
-    return { success: false, message: 'Indexing already in progress' };
+  if (isProtocolRunning) {
+    return { success: false, message: 'Protocol indexing already in progress' };
   }
 
   logger.info('INDEXER', 'Starting full protocol re-index (deleting existing data)');
@@ -1078,8 +1084,8 @@ async function indexDrucksachenChunksForWahlperiode(wahlperiode, drucksachetypen
  * Run document chunk indexing pass
  */
 export async function runDocumentChunkIndexing() {
-  if (isRunning) {
-    logger.warn('INDEXER', 'Indexing already in progress, skipping document chunk indexing');
+  if (isDocumentRunning) {
+    logger.warn('INDEXER', 'Document chunk indexing already in progress');
     return;
   }
 
@@ -1095,7 +1101,7 @@ export async function runDocumentChunkIndexing() {
     return;
   }
 
-  isRunning = true;
+  isDocumentRunning = true;
   const startTime = Date.now();
   let totalDocuments = 0;
   let totalChunks = 0;
@@ -1139,7 +1145,7 @@ export async function runDocumentChunkIndexing() {
     logger.error('INDEXER', `Document chunk indexing failed: ${err.message}`);
     documentChunkStats.errors++;
   } finally {
-    isRunning = false;
+    isDocumentRunning = false;
   }
 }
 
@@ -1160,8 +1166,8 @@ export function getDocumentChunkStats() {
  * Trigger manual document chunk indexing
  */
 export async function triggerDocumentChunkIndexing() {
-  if (isRunning) {
-    return { success: false, message: 'Indexing already in progress' };
+  if (isDocumentRunning) {
+    return { success: false, message: 'Document chunk indexing already in progress' };
   }
 
   runDocumentChunkIndexing();
