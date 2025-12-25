@@ -51,6 +51,8 @@ services:
     image: qdrant/qdrant:latest
     expose:
       - "6333"
+    ports:
+      - "16333:6333"  # External access for migration (use port 16333 to avoid conflicts)
     volumes:
       - qdrant_data:/qdrant/storage
     environment:
