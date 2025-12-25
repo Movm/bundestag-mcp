@@ -49,9 +49,9 @@ src/
 │   ├── embeddingService.js # Mistral AI embeddings
 │   └── qdrantService.js   # Vector database operations
 ├── tools/
-│   ├── search.js          # 14 search/entity tools with Zod schemas
-│   ├── analysis.js        # 5 NLP analysis tools (speech extraction, tone, topics)
-│   ├── semanticSearch.js  # Semantic search tools
+│   ├── search.js          # 15 search/entity tools with Zod schemas (incl. estimate_size)
+│   ├── analysis.js        # 7 NLP analysis tools (speech extraction, tone, topics, speaker_profile, compare_parties)
+│   ├── semanticSearch.js  # 10 semantic search tools (documents, speeches, sections)
 │   └── clientConfig.js    # Client configuration generator tool
 ├── resources/info.js      # MCP resources (system-prompt, info, etc.)
 └── utils/
@@ -79,17 +79,17 @@ Three-layer cache in `src/utils/cache.js`:
 ### MCP Protocol
 
 The server exposes:
-- **Tools**: 22 tools across search, semantic search, and NLP analysis
+- **Tools**: 33 tools across search, semantic search, and NLP analysis
   - Drucksachen: search, get, text search
   - Plenarprotokolle: search, get, text search
   - Vorgänge: search, get, positionen search
   - Personen: search, get
   - Aktivitäten: search, get
-  - Semantic search: search, status, trigger_indexing
-  - NLP Analysis: extract_speeches, analyze_text, analyze_tone, classify_topics, analysis_health
-  - Utility: cache_stats, get_client_config
-- **Prompts**: 4 workflow templates (search-legislation, track-proceeding, mp-activity-report, analyze-debate)
-- **Resources**: system-prompt, info, wahlperioden, drucksachetypen
+  - Semantic search: search, speeches, document sections, status, trigger_indexing (10 tools)
+  - NLP Analysis: extract_speeches, analyze_text, analyze_tone, classify_topics, analysis_health, speaker_profile, compare_parties
+  - Utility: estimate_size, cache_stats, get_client_config
+- **Prompts**: 8 workflow templates (search-legislation, track-proceeding, mp-activity-report, analyze-debate, compare-factions, find-statements, topic-trends, speaker-deep-dive)
+- **Resources**: system-prompt, info, wahlperioden, drucksachetypen, factions
 
 All tools are read-only (annotated with `readOnlyHint: true`).
 

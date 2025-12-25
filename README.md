@@ -60,9 +60,9 @@ You can use this directly in your MCP client configuration without running your 
 - **Structured Logging** - JSON logs with categories and levels
 
 ### MCP Protocol
-- **31 Tools** - Search, retrieval, semantic search, speech search, and NLP analysis
-- **4 Prompts** - Guided workflows for common tasks
-- **11 Resources** - Static and dynamic resource templates
+- **33 Tools** - Search, retrieval, semantic search, speech search, and NLP analysis
+- **8 Prompts** - Guided workflows for common research tasks
+- **12 Resources** - Static and dynamic resource templates
 - **Dual Mode** - Supports stateful (Claude, Cursor) and stateless (ChatGPT) clients
 
 ## Quick Start
@@ -186,6 +186,7 @@ These tools use a Python FastAPI service with spaCy's German language model for 
 
 | Tool | Description |
 |------|-------------|
+| `bundestag_estimate_size` | Check document/protocol size BEFORE fetching to manage context window |
 | `bundestag_cache_stats` | Show cache statistics |
 | `get_client_config` | Generate MCP client configurations |
 
@@ -207,10 +208,14 @@ Guided workflows for common parliamentary research tasks:
 
 | Prompt | Description |
 |--------|-------------|
-| `search-legislation` | Guided search for bills and legislation with step-by-step instructions |
-| `track-proceeding` | Track a parliamentary proceeding through its lifecycle |
-| `mp-activity-report` | Generate comprehensive activity report for an MP |
-| `analyze-debate` | Analyze a plenary debate - extract speeches, tone, and topics |
+| `search-legislation` | Guided search for bills and legislation with semantic search and fallback strategies |
+| `track-proceeding` | Track a parliamentary proceeding with legislative glossary and timeline |
+| `mp-activity-report` | Comprehensive MP report with rhetorical analysis via `bundestag_speaker_profile` |
+| `analyze-debate` | Analyze plenary debate with party comparison via `bundestag_compare_parties` |
+| `compare-factions` | Compare party rhetoric on a topic using cross-party analysis |
+| `find-statements` | Find specific quotes/statements from politicians with fallback strategies |
+| `topic-trends` | Analyze how topic discussion evolved over time (across Wahlperioden/years) |
+| `speaker-deep-dive` | Comprehensive rhetorical and policy analysis of a politician |
 
 ## MCP Resources
 
@@ -218,10 +223,11 @@ Guided workflows for common parliamentary research tasks:
 
 | URI | Description |
 |-----|-------------|
-| `bundestag://system-prompt` | AI usage instructions |
-| `bundestag://info` | Server capabilities |
-| `bundestag://wahlperioden` | Electoral periods |
-| `bundestag://drucksachetypen` | Document types |
+| `bundestag://system-prompt` | AI usage instructions with tool selection guide and context management |
+| `bundestag://info` | Server capabilities and tool listing |
+| `bundestag://wahlperioden` | Electoral periods (Wahlperioden) |
+| `bundestag://drucksachetypen` | Document types (Gesetzentwurf, Antrag, etc.) |
+| `bundestag://factions` | Parliamentary factions with official names, aliases, colors, and positions |
 
 ### Resource Templates
 
@@ -378,7 +384,7 @@ src/
 │   ├── protokollParser.js    # Protocol speech extraction
 │   └── drucksacheParser.js   # Document section parsing
 ├── tools/
-│   ├── search.js         # 14 search/entity tools
+│   ├── search.js         # 15 search/entity tools (incl. estimate_size)
 │   ├── analysis.js       # 7 NLP analysis tools
 │   ├── semanticSearch.js # 10 semantic search tools
 │   └── clientConfig.js   # Client configuration tool

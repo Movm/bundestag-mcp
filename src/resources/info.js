@@ -134,6 +134,77 @@ europa, digital, bildung, finanzen, justiz, arbeit, mobilitaet
 3. Extract speeches with \`bundestag_extract_speeches({ text: fullText })\`
 4. Analyze tone with \`bundestag_analyze_tone({ text: fullText })\`
 5. Classify topics with \`bundestag_classify_topics({ text: fullText })\`
+
+## Tool Selection Guide
+
+**When to use which search tool:**
+
+| Need | Primary Tool | Fallback |
+|------|--------------|----------|
+| Find legislation by topic | \`bundestag_search_vorgaenge\` | \`bundestag_semantic_search\` |
+| Find specific document by ID | \`bundestag_get_drucksache\` | - |
+| Find what someone said | \`bundestag_semantic_search\` (entityTypes: ["speech"]) | \`bundestag_search_plenarprotokolle_text\` |
+| Exploratory/broad search | \`bundestag_semantic_search\` | \`bundestag_search_drucksachen\` |
+| Find specific paragraphs | \`bundestag_search_drucksachen_text\` | - |
+| Analyze speaker rhetoric | \`bundestag_speaker_profile\` | \`bundestag_analyze_tone\` |
+| Compare party positions | \`bundestag_compare_parties\` | multiple \`bundestag_analyze_tone\` |
+| Track bill lifecycle | \`bundestag_search_vorgangspositionen\` | - |
+
+## Context Window Management
+
+**IMPORTANT:** Before fetching full text of large documents, check the size first:
+
+\`\`\`
+bundestag_estimate_size({ type: "plenarprotokoll", id: 12345 })
+\`\`\`
+
+This returns:
+- Estimated token count
+- Size category (tiny/small/medium/large/very_large/massive)
+- Context usage percentage for your model
+- Recommendation (safe to fetch / avoid full text)
+
+**Size categories:**
+| Category | Tokens | Action |
+|----------|--------|--------|
+| 🟢 tiny/small | <2k | Safe to fetch |
+| 🟡 medium | 2k-8k | Consider if needed |
+| 🟠 large | 8k-25k | Fetch only if essential |
+| 🔴 very_large | 25k-50k | Avoid full text |
+| ⛔ massive | >50k | Use text search instead |
+
+**Plenarprotokolle are typically 50k-200k tokens!** Always check size first.
+
+## Common Pitfalls
+
+1. **Empty search results:** Try removing umlauts (ä→ae, ö→oe, ü→ue, ß→ss)
+2. **Person search fails:** Use partial name, check for academic titles (Dr., Prof.)
+3. **Semantic search unavailable:** Fall back to keyword search tools
+4. **NLP tools fail:** Check \`bundestag_analysis_health\` first
+5. **Faction names:** Use official names: "CDU/CSU", "BÜNDNIS 90/DIE GRÜNEN", "DIE LINKE"
+6. **Context overflow:** Always use \`bundestag_estimate_size\` before fetching full protocol text
+
+## Efficient Tool Chaining
+
+**Get a speaker's rhetoric on a topic:**
+1. \`bundestag_semantic_search\` (speaker + topic, entityTypes: ["speech"])
+2. \`bundestag_speaker_profile\` (with results)
+
+**Compare parties on a topic:**
+1. \`bundestag_semantic_search\` (topic, limit 100+)
+2. \`bundestag_compare_parties\` (with results)
+
+**Track a bill completely:**
+1. \`bundestag_search_vorgaenge\` (find the Vorgang)
+2. \`bundestag_get_vorgang\` (get details)
+3. \`bundestag_search_vorgangspositionen\` (get all steps)
+4. \`bundestag_get_drucksache\` (for each linked document as needed)
+
+**Analyze a debate:**
+1. \`bundestag_get_plenarprotokoll\` (with includeFullText: true)
+2. \`bundestag_extract_speeches\` (parse speeches)
+3. \`bundestag_compare_parties\` (compare rhetoric)
+4. \`bundestag_classify_topics\` (identify policy areas)
 `;
   }
 };
@@ -206,9 +277,22 @@ export const infoResource = {
         'bundestag_analyze_text',
         'bundestag_analyze_tone',
         'bundestag_classify_topics',
+        'bundestag_speaker_profile',
+        'bundestag_compare_parties',
         'bundestag_analysis_health',
+        'bundestag_estimate_size',
         'bundestag_cache_stats',
         'get_client_config'
+      ],
+      prompts: [
+        'search-legislation',
+        'track-proceeding',
+        'mp-activity-report',
+        'analyze-debate',
+        'compare-factions',
+        'find-statements',
+        'topic-trends',
+        'speaker-deep-dive'
       ]
     };
   }
@@ -270,10 +354,89 @@ export const drucksachetypenResource = {
   }
 };
 
+/**
+ * Parliamentary factions resource
+ */
+export const factionenResource = {
+  uri: 'bundestag://factions',
+  name: 'Parliamentary Factions',
+  description: 'List of Bundestag factions with official names and common aliases for API filtering',
+  mimeType: 'application/json',
+
+  async handler() {
+    return {
+      current_wahlperiode: 20,
+      factions: [
+        {
+          official: 'SPD',
+          full_name: 'Sozialdemokratische Partei Deutschlands',
+          aliases: ['Sozialdemokraten'],
+          color: '#E3000F',
+          position: 'center-left'
+        },
+        {
+          official: 'CDU/CSU',
+          full_name: 'Christlich Demokratische Union / Christlich-Soziale Union',
+          aliases: ['Union', 'Christdemokraten', 'CDU', 'CSU'],
+          color: '#000000',
+          position: 'center-right'
+        },
+        {
+          official: 'BÜNDNIS 90/DIE GRÜNEN',
+          full_name: 'Bündnis 90/Die Grünen',
+          aliases: ['Grüne', 'Die Grünen', 'B90/Grüne', 'Gruene'],
+          color: '#1AA037',
+          position: 'center-left'
+        },
+        {
+          official: 'FDP',
+          full_name: 'Freie Demokratische Partei',
+          aliases: ['Liberale', 'Freie Demokraten'],
+          color: '#FFEF00',
+          position: 'center'
+        },
+        {
+          official: 'AfD',
+          full_name: 'Alternative für Deutschland',
+          aliases: ['Alternative für Deutschland'],
+          color: '#0489DB',
+          position: 'right'
+        },
+        {
+          official: 'DIE LINKE',
+          full_name: 'Die Linke',
+          aliases: ['Linke', 'Linkspartei'],
+          color: '#BE3075',
+          position: 'left',
+          note: 'Lost faction status in 2024 due to split'
+        },
+        {
+          official: 'BSW',
+          full_name: 'Bündnis Sahra Wagenknecht',
+          aliases: ['Bündnis Sahra Wagenknecht', 'Wagenknecht'],
+          color: '#731930',
+          position: 'left-populist',
+          note: 'Split from DIE LINKE in 2024'
+        },
+        {
+          official: 'fraktionslos',
+          full_name: 'Fraktionslose Abgeordnete',
+          aliases: ['parteilos', 'unaffiliated', 'independent'],
+          color: '#808080',
+          note: 'MPs without faction membership'
+        }
+      ],
+      usage_note: 'Always use the official name for API filtering (fraktion parameter). Aliases are for recognition and search fallback only.',
+      api_tip: 'When searching by party, use bundestag_semantic_search with fraktion parameter set to official name'
+    };
+  }
+};
+
 // Export all resources
 export const allResources = [
   systemPromptResource,
   infoResource,
   wahlperiodenResource,
-  drucksachetypenResource
+  drucksachetypenResource,
+  factionenResource
 ];

@@ -665,6 +665,119 @@ export const cacheStatsTool = {
   }
 };
 
+import { analyzeSize, CONTEXT_WINDOWS } from '../utils/tokenEstimator.js';
+
+export const estimateSizeTool = {
+  name: 'bundestag_estimate_size',
+  description: `Check the size of a document or protocol BEFORE fetching full text.
+Returns estimated token count, size category, and recommendations.
+Use this to avoid overwhelming your context window with large documents.
+
+Categories:
+- 🟢 tiny/small (<2k tokens): Safe to fetch
+- 🟡 medium (2k-8k tokens): Consider if needed
+- 🟠 large (8k-25k tokens): Fetch only if essential
+- 🔴 very_large (25k-50k tokens): Avoid full text
+- ⛔ massive (>50k tokens): Use text search instead`,
+
+  inputSchema: {
+    type: z.enum(['drucksache', 'plenarprotokoll'])
+      .describe('Type of document to check'),
+    id: z.number().int().positive()
+      .describe('Document or protocol ID'),
+    model: z.string().optional()
+      .describe('Optional: specific model to check context usage for (e.g., "gpt-4o", "claude-3-sonnet")')
+  },
+
+  async handler(params) {
+    try {
+      let text = null;
+      let metadata = null;
+
+      if (params.type === 'drucksache') {
+        // Get metadata first (small)
+        metadata = await api.getDrucksache(params.id, { useCache: true });
+        if (!metadata) {
+          return {
+            error: true,
+            message: `Drucksache with ID ${params.id} not found`,
+            type: params.type
+          };
+        }
+
+        // Fetch text to measure
+        try {
+          const textResult = await api.getDrucksacheText(params.id, { useCache: true });
+          text = textResult?.text || textResult || '';
+        } catch {
+          text = '';
+        }
+      } else if (params.type === 'plenarprotokoll') {
+        // Get metadata first
+        metadata = await api.getPlenarprotokoll(params.id, { useCache: true });
+        if (!metadata) {
+          return {
+            error: true,
+            message: `Plenarprotokoll with ID ${params.id} not found`,
+            type: params.type
+          };
+        }
+
+        // Fetch text to measure
+        try {
+          const textResult = await api.getPlenarprotokollText(params.id, { useCache: true });
+          text = textResult?.text || textResult || '';
+        } catch {
+          text = '';
+        }
+      }
+
+      // Analyze the size
+      const analysis = analyzeSize(text, {
+        language: 'german',
+        model: params.model
+      });
+
+      // Build document info
+      const docInfo = {
+        type: params.type,
+        id: params.id,
+        title: metadata?.titel || metadata?.title || 'Unknown',
+        date: metadata?.datum || metadata?.date || null,
+        dokumentnummer: metadata?.dokumentnummer || null
+      };
+
+      return {
+        success: true,
+        document: docInfo,
+        hasText: text.length > 0,
+        size: {
+          characters: analysis.characters,
+          words: analysis.words,
+          lines: analysis.lines,
+          estimatedTokens: analysis.estimatedTokens
+        },
+        category: analysis.category,
+        categoryEmoji: analysis.emoji,
+        recommendation: analysis.recommendation,
+        contextImpact: analysis.contextImpact,
+        contextUsage: analysis.contextUsage,
+        summary: analysis.summary,
+        tip: analysis.category === 'large' || analysis.category === 'very_large' || analysis.category === 'massive'
+          ? 'Consider using bundestag_search_' + params.type + (params.type === 'drucksache' ? 'n' : '') + '_text to find specific content instead of fetching full text.'
+          : null
+      };
+    } catch (err) {
+      return {
+        error: true,
+        message: err.message,
+        type: params.type,
+        id: params.id
+      };
+    }
+  }
+};
+
 // Export all tools as array for easy registration
 export const allTools = [
   // Drucksachen (Documents)
@@ -686,5 +799,6 @@ export const allTools = [
   searchAktivitaetenTool,
   getAktivitaetTool,
   // Utility
-  cacheStatsTool
+  cacheStatsTool,
+  estimateSizeTool
 ];
