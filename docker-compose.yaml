@@ -51,6 +51,10 @@ services:
     image: qdrant/qdrant:latest
     expose:
       - "6333"
+    ports:
+      # Set QDRANT_EXTERNAL_PORT=0.0.0.0:16333 to expose externally (for migration)
+      # Default binds to localhost only (not externally accessible)
+      - "${QDRANT_EXTERNAL_PORT:-127.0.0.1:16333}:6333"
     volumes:
       - qdrant_data:/qdrant/storage
     environment:
